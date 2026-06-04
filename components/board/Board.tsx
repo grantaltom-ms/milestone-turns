@@ -3,22 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { STAGES } from "@/lib/stages";
+import { STAGE_FILTER_CATEGORY } from "@/lib/stages";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import type { Turn } from "@/lib/supabase/types";
 import { TurnCard } from "./TurnCard";
 
-type Filter = "All" | "Repairs" | "Cleaning" | "Mine";
-const FILTERS: Filter[] = ["All", "Repairs", "Cleaning", "Mine"];
+type Filter = "All" | "Office" | "Maintenance" | "Ready";
+const FILTERS: Filter[] = ["All", "Office", "Maintenance", "Ready"];
 
 export function Board({
   turns,
   openCounts,
-  meInitials,
 }: {
   turns: Turn[];
   openCounts: Record<string, number>;
-  meInitials: string;
+  meInitials?: string;
 }) {
   const [filter, setFilter] = useState<Filter>("All");
   const router = useRouter();
@@ -37,10 +36,13 @@ export function Board({
   const visible = useMemo(() => {
     return turns.filter((t) => {
       if (filter === "All") return true;
-      if (filter === "Mine") return t.assignee === meInitials;
-      return STAGES[t.stage_idx].name === filter;
+      const cat = STAGE_FILTER_CATEGORY[t.stage_idx];
+      if (filter === "Office") return cat === "office";
+      if (filter === "Maintenance") return cat === "maintenance";
+      if (filter === "Ready") return cat === "ready";
+      return true;
     });
-  }, [turns, filter, meInitials]);
+  }, [turns, filter]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>

@@ -4,7 +4,10 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { createTurnAction } from "@/app/actions";
 import { normalizeUnit } from "@/lib/csv-import";
-import { avatarColor, DEFAULT_TASKS, TEAM } from "@/lib/stages";
+import { avatarColor, DEFAULT_TASKS, membersOnTeam } from "@/lib/stages";
+
+// New turns always start at Inspection (stage 0 = office team).
+const OFFICE_INITIALS = membersOnTeam("office").map((m) => m.initials);
 import type { PropertyRow } from "@/lib/supabase/types";
 
 type Errors = Partial<Record<"property" | "unit" | "vacate" | "target", true>>;
@@ -39,7 +42,7 @@ export function NewTurnForm({ properties, defaultAssignee }: { properties: Prope
   const [vacateDate, setVacateDate] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [assignee, setAssignee] = useState(
-    TEAM.includes(defaultAssignee as (typeof TEAM)[number]) ? defaultAssignee : TEAM[0],
+    OFFICE_INITIALS.includes(defaultAssignee) ? defaultAssignee : OFFICE_INITIALS[0],
   );
   const [errors, setErrors] = useState<Errors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -163,9 +166,9 @@ export function NewTurnForm({ properties, defaultAssignee }: { properties: Prope
         </div>
 
         <div style={{ marginBottom: 20 }}>
-          <label style={LABEL_STYLE()}>Assign owner</label>
+          <label style={LABEL_STYLE()}>Assign owner (office team)</label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {TEAM.map((initials) => {
+            {OFFICE_INITIALS.map((initials) => {
               const selected = assignee === initials;
               const color = avatarColor(initials);
               return (

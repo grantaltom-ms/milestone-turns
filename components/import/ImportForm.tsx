@@ -12,7 +12,10 @@ import {
   REQUIRED_COLUMNS,
   validateRow,
 } from "@/lib/csv-import";
-import { avatarColor, TEAM } from "@/lib/stages";
+import { avatarColor, membersOnTeam } from "@/lib/stages";
+
+// Imports always create turns at Inspection (office team).
+const OFFICE_INITIALS = membersOnTeam("office").map((m) => m.initials);
 
 export function ImportForm({
   propertyByName,
@@ -30,9 +33,9 @@ export function ImportForm({
     [propertyNameById],
   );
 
-  const initialAssignee = TEAM.includes(defaultAssignee as (typeof TEAM)[number])
+  const initialAssignee = OFFICE_INITIALS.includes(defaultAssignee)
     ? defaultAssignee
-    : TEAM[0];
+    : OFFICE_INITIALS[0];
 
   const [assignee, setAssignee] = useState<string>(initialAssignee);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -170,10 +173,10 @@ export function ImportForm({
               marginBottom: 7,
             }}
           >
-            Assign all to
+            Assign all to (office team)
           </label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {TEAM.map((initials) => {
+            {OFFICE_INITIALS.map((initials) => {
               const selected = assignee === initials;
               const color = avatarColor(initials);
               return (

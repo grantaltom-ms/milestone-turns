@@ -17,6 +17,25 @@ export async function toggleTaskAction(taskId: string, done: boolean) {
   revalidatePath("/");
 }
 
+export async function setTaskAssigneeAction(taskId: string, assignee: string) {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("turn_tasks")
+    .update({ assignee })
+    .eq("id", taskId)
+    .select("id, turn_id, name, assignee")
+    .maybeSingle();
+  if (error) throw error;
+  if (data?.turn_id) revalidatePath(`/turns/${data.turn_id}`);
+  revalidatePath("/");
+
+  // Slack hook — currently a no-op until Phase 2 lands SLACK_BOT_TOKEN setup.
+  if (data) {
+    const { notifyTaskAssigned } = await import("@/lib/slack");
+    await notifyTaskAssigned({ taskId: data.id, taskName: data.name, turnId: data.turn_id, assignee: data.assignee });
+  }
+}
+
 export async function advanceTurnAction(turnId: string) {
   const supabase = await getServerSupabase();
   const { error } = await supabase.rpc("advance_turn", { p_turn_id: turnId });
