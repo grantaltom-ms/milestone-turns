@@ -7,6 +7,7 @@ export type Turn = {
   vacate_date: string;
   target_date: string;
   assignee: string;
+  stage_entered_at: string;
   created_at: string;
   updated_at: string;
 };
@@ -18,6 +19,9 @@ export type Task = {
   assignee: string;
   done: boolean;
   sort_order: number;
+  stage_idx: number;
+  done_at: string | null;
+  completed_by: string | null;
 };
 
 export type TurnWithTasks = Turn & { tasks: Task[] };

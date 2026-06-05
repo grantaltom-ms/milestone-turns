@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { createTurnAction } from "@/app/actions";
 import { normalizeUnit } from "@/lib/csv-import";
-import { DEFAULT_TASKS, type ProfileMember } from "@/lib/stages";
+import { type ProfileMember } from "@/lib/stages";
 import { Avatar } from "@/components/Avatar";
 import type { PropertyRow } from "@/lib/supabase/types";
 
@@ -38,10 +38,12 @@ export function NewTurnForm({
   properties,
   defaultAssignee,
   officeMembers,
+  inspectionDefaults,
 }: {
   properties: PropertyRow[];
   defaultAssignee: string;
   officeMembers: ProfileMember[];
+  inspectionDefaults: string[];
 }) {
   const initials = officeMembers.map((m) => m.initials);
   const [propertyId, setPropertyId] = useState<string>("");
@@ -178,13 +180,16 @@ export function NewTurnForm({
 
         <div style={{ background: "rgba(46,107,94,0.09)", border: "1px solid rgba(46,107,94,0.22)", borderRadius: 8, padding: "12px 14px" }}>
           <div style={{ fontWeight: 600, fontSize: 11.5, color: "#2E6B5E", marginBottom: 7, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            Auto-filled checklist
+            Inspection checklist (auto-seeded)
           </div>
-          {DEFAULT_TASKS[0].map((name) => (
+          {inspectionDefaults.map((name) => (
             <div key={name} style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.62)", padding: "3px 0", display: "flex", gap: 8 }}>
               <span style={{ color: "#2E6B5E" }}>○</span>{name}
             </div>
           ))}
+          <div style={{ fontWeight: 400, fontSize: 11.5, color: "rgba(11,27,43,0.4)", marginTop: 8, fontStyle: "italic" }}>
+            All 5 later stages also get their default checklists — visible on the unit's detail page.
+          </div>
         </div>
 
         {submitError && (

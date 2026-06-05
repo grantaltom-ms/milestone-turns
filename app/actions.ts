@@ -6,9 +6,23 @@ import { getServerSupabase } from "@/lib/supabase/server";
 
 export async function toggleTaskAction(taskId: string, done: boolean) {
   const supabase = await getServerSupabase();
+  // Look up the actor's initials so completed_by is attributable on check.
+  const { data: { user } } = await supabase.auth.getUser();
+  let actorInitials: string | null = null;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("initials")
+      .eq("id", user.id)
+      .maybeSingle();
+    actorInitials = (profile as { initials?: string } | null)?.initials ?? null;
+  }
+  const patch = done
+    ? { done: true,  done_at: new Date().toISOString(), completed_by: actorInitials }
+    : { done: false, done_at: null,                     completed_by: null };
   const { data, error } = await supabase
     .from("turn_tasks")
-    .update({ done })
+    .update(patch)
     .eq("id", taskId)
     .select("turn_id")
     .maybeSingle();
