@@ -3,26 +3,34 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { STAGE_FILTER_CATEGORY } from "@/lib/stages";
+import { STAGE_FILTER_CATEGORY, type ProfileMember } from "@/lib/stages";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import type { Profile, Turn } from "@/lib/supabase/types";
+import type { TurnMeta } from "@/lib/turn-meta";
 import { UserHeader } from "@/components/UserHeader";
 import { TurnCard } from "./TurnCard";
 
-type Filter = "All" | "Office" | "Maintenance" | "Ready";
-const FILTERS: Filter[] = ["All", "Office", "Maintenance", "Ready"];
+type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "Overdue";
+const FILTERS: Filter[] = ["All", "Mine", "Office", "Maintenance", "Ready", "Overdue"];
 
 export function Board({
   turns,
   openCounts,
   currentUser,
+  profiles,
+  mineIds,
+  meta,
 }: {
   turns: Turn[];
   openCounts: Record<string, number>;
   currentUser: Profile;
+  profiles: ProfileMember[];
+  mineIds: string[];
+  meta: Record<string, TurnMeta>;
 }) {
   const [filter, setFilter] = useState<Filter>("All");
   const router = useRouter();
+  const mineSet = useMemo(() => new Set(mineIds), [mineIds]);
 
   useEffect(() => {
     const supabase = getBrowserSupabase();
@@ -37,13 +45,15 @@ export function Board({
   const visible = useMemo(() => {
     return turns.filter((t) => {
       if (filter === "All") return true;
+      if (filter === "Mine") return mineSet.has(t.id);
+      if (filter === "Overdue") return meta[t.id]?.isOverdue ?? false;
       const cat = STAGE_FILTER_CATEGORY[t.stage_idx];
       if (filter === "Office") return cat === "office";
       if (filter === "Maintenance") return cat === "maintenance";
       if (filter === "Ready") return cat === "ready";
       return true;
     });
-  }, [turns, filter]);
+  }, [turns, filter, mineSet, meta]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -139,7 +149,15 @@ export function Board({
             No units match this filter.
           </p>
         ) : (
-          visible.map((t) => <TurnCard key={t.id} turn={t} openTasks={openCounts[t.id] ?? 0} />)
+          visible.map((t) => (
+            <TurnCard
+              key={t.id}
+              turn={t}
+              openTasks={openCounts[t.id] ?? 0}
+              profiles={profiles}
+              meta={meta[t.id]}
+            />
+          ))
         )}
       </div>
     </div>
