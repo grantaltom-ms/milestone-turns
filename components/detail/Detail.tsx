@@ -24,6 +24,7 @@ import {
 } from "@/lib/stages";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import type { Profile, Task, TaskNote, TurnWithTasks } from "@/lib/supabase/types";
+import { computeTurnMeta } from "@/lib/turn-meta";
 
 type Interactivity = "past" | "current" | "future";
 
@@ -198,7 +199,7 @@ export function Detail({
             <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 20, color: "#F5F1E8" }}>
               {turn.property_name ?? "Property"} <span style={{ color: "#5BAE97" }}>{turn.unit}</span>
             </div>
-            <div style={{ display: "flex", gap: 16, marginTop: 7 }}>
+            <div style={{ display: "flex", gap: 16, marginTop: 7, alignItems: "flex-end", flexWrap: "wrap" }}>
               {[
                 ["Vacated", formatDate(turn.vacate_date)],
                 ["Target", formatDate(turn.target_date)],
@@ -212,6 +213,44 @@ export function Detail({
                   </div>
                 </div>
               ))}
+              {(() => {
+                const meta = computeTurnMeta(turn);
+                return (
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {meta.daysInStage > 0 && (
+                      <span
+                        style={{
+                          background: "rgba(245,241,232,0.12)",
+                          color: "rgba(245,241,232,0.88)",
+                          borderRadius: 999,
+                          padding: "3px 9px",
+                          fontWeight: 500,
+                          fontSize: 11.5,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {meta.daysInStage}d in {STAGES[turn.stage_idx].name}
+                      </span>
+                    )}
+                    {meta.isOverdue && (
+                      <span
+                        style={{
+                          background: "#C45C3B",
+                          color: "#fff",
+                          borderRadius: 999,
+                          padding: "3px 9px",
+                          fontWeight: 600,
+                          fontSize: 11,
+                          letterSpacing: "0.04em",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        OVERDUE
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
           <StageTag stageIdx={turn.stage_idx} lg />

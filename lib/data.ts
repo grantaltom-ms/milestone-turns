@@ -80,6 +80,32 @@ export async function loadTaskCounts(): Promise<Map<string, { open: number; tota
   return map;
 }
 
+/** Set of turn IDs the given user "owns" — either as the turn assignee or
+ * because they have at least one open task on the turn's current stage. */
+export async function loadMineSet(initials: string): Promise<Set<string>> {
+  const supabase = await getServerSupabase();
+  const [{ data: ownedTurns, error: oErr }, { data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
+    supabase.from("turns").select("id").eq("assignee", initials),
+    supabase.from("turns").select("id, stage_idx"),
+    supabase
+      .from("turn_tasks")
+      .select("turn_id, stage_idx")
+      .eq("assignee", initials)
+      .eq("done", false),
+  ]);
+  if (oErr) throw oErr;
+  if (tErr) throw tErr;
+  if (kErr) throw kErr;
+  const set = new Set<string>();
+  for (const row of ownedTurns ?? []) set.add(row.id);
+  const currentStage = new Map<string, number>();
+  for (const t of turns ?? []) currentStage.set(t.id, t.stage_idx);
+  for (const k of tasks ?? []) {
+    if (currentStage.get(k.turn_id) === k.stage_idx) set.add(k.turn_id);
+  }
+  return set;
+}
+
 export async function loadProperties(): Promise<PropertyRow[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
