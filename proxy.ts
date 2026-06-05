@@ -1,11 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const REQUIRE_AUTH = process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true";
-
 // Was `middleware.ts` pre-v16; renamed to `proxy.ts` per Next.js 16.
+
+// Paths that never require auth
+const PUBLIC_PREFIXES = ["/login", "/auth/", "/onboarding"];
+
 export async function proxy(request: NextRequest) {
-  if (!REQUIRE_AUTH) return NextResponse.next();
+  const { pathname } = request.nextUrl;
+
+  // Let public paths through immediately
+  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
 
   let response = NextResponse.next({ request });
 
@@ -24,21 +31,17 @@ export async function proxy(request: NextRequest) {
     },
   );
 
+  // Refresh session (rotates tokens if needed)
   const { data: { user } } = await supabase.auth.getUser();
-  const isLogin = request.nextUrl.pathname.startsWith("/login");
 
-  if (!user && !isLogin) {
+  if (!user) {
+    // Not authenticated → redirect to /login with ?next= for return
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
+    if (pathname !== "/") url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
-  if (user && isLogin) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    url.searchParams.delete("next");
-    return NextResponse.redirect(url);
-  }
+
   return response;
 }
 
