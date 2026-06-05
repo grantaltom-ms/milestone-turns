@@ -178,3 +178,64 @@ export async function signOutAction(): Promise<void> {
   await supabase.auth.signOut();
   redirect("/login");
 }
+
+export async function updateTurnAction(turnId: string, patch: {
+  unit?: string;
+  vacate_date?: string;
+  target_date?: string;
+}) {
+  const supabase = await getServerSupabase();
+  const { error } = await supabase.from("turns").update(patch).eq("id", turnId);
+  if (error) throw error;
+  revalidatePath(`/turns/${turnId}`);
+  revalidatePath("/");
+}
+
+export async function deleteTurnAction(turnId: string) {
+  const supabase = await getServerSupabase();
+  const { error } = await supabase.from("turns").delete().eq("id", turnId);
+  if (error) throw error;
+  revalidatePath("/");
+  redirect("/");
+}
+
+export async function addTaskAction(turnId: string, stageIdx: number, name: string) {
+  const supabase = await getServerSupabase();
+  const [{ data: maxTask }, { data: turn }] = await Promise.all([
+    supabase
+      .from("turn_tasks")
+      .select("sort_order")
+      .eq("turn_id", turnId)
+      .eq("stage_idx", stageIdx)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase.from("turns").select("assignee").eq("id", turnId).maybeSingle(),
+  ]);
+  const sortOrder = ((maxTask as { sort_order: number } | null)?.sort_order ?? -1) + 1;
+  const assignee = (turn as { assignee: string } | null)?.assignee ?? "";
+  const { error } = await supabase.from("turn_tasks").insert({
+    turn_id: turnId,
+    stage_idx: stageIdx,
+    name: name.trim(),
+    assignee,
+    done: false,
+    sort_order: sortOrder,
+  });
+  if (error) throw error;
+  revalidatePath(`/turns/${turnId}`);
+  revalidatePath("/");
+}
+
+export async function deleteTaskAction(taskId: string) {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("turn_tasks")
+    .delete()
+    .eq("id", taskId)
+    .select("turn_id")
+    .maybeSingle();
+  if (error) throw error;
+  if (data?.turn_id) revalidatePath(`/turns/${data.turn_id}`);
+  revalidatePath("/");
+}

@@ -4,10 +4,14 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import {
+  addTaskAction,
   advanceTurnAction,
+  deleteTaskAction,
+  deleteTurnAction,
   setStageAssigneeAction,
   setTaskAssigneeAction,
   toggleTaskAction,
+  updateTurnAction,
 } from "@/app/actions";
 import { Avatar } from "@/components/Avatar";
 import { SegBar } from "@/components/SegBar";
@@ -46,6 +50,7 @@ export function Detail({
     | { kind: "stage"; stageIdx: number }
     | null
   >(null);
+  const [editOpen, setEditOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => { setTasks(turn.tasks); }, [turn.tasks]);
@@ -191,7 +196,30 @@ export function Detail({
           >
             ← Back
           </Link>
-          <UserHeader profile={currentUser} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setEditOpen(true)}
+              aria-label="Edit turn"
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: "transparent",
+                border: "1.5px solid rgba(245,241,232,0.3)",
+                color: "rgba(245,241,232,0.75)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M11.5 2.5a1.414 1.414 0 012 2L5 13H3v-2L11.5 2.5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <UserHeader profile={currentUser} />
+          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
@@ -277,6 +305,13 @@ export function Detail({
             onToggle={onToggle}
             onReassignTask={(taskId) => setPicker({ kind: "task", taskId })}
             onReassignStage={(stageIdx) => setPicker({ kind: "stage", stageIdx })}
+            onAddTask={(name) => {
+              startTransition(() => { void addTaskAction(turn.id, i, name); });
+            }}
+            onDeleteTask={(taskId) => {
+              setTasks((prev) => prev.filter((t) => t.id !== taskId));
+              startTransition(() => { void deleteTaskAction(taskId); });
+            }}
           />
         ))}
 
@@ -319,6 +354,14 @@ export function Detail({
         </div>
       )}
 
+      {/* Edit sheet */}
+      {editOpen && (
+        <EditTurnSheet
+          turn={turn}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
+
       {/* Pickers */}
       {picker && (
         <AssigneeSheet
@@ -359,6 +402,8 @@ function StageSection({
   onToggle,
   onReassignTask,
   onReassignStage,
+  onAddTask,
+  onDeleteTask,
 }: {
   stageIdx: number;
   stageName: string;
@@ -371,8 +416,11 @@ function StageSection({
   onToggle: (t: Task) => void;
   onReassignTask: (taskId: string) => void;
   onReassignStage: (stageIdx: number) => void;
+  onAddTask: (name: string) => void;
+  onDeleteTask: (taskId: string) => void;
 }) {
   const [open, setOpen] = useState(interactivity === "current");
+  const [newTaskName, setNewTaskName] = useState("");
   const doneCount = tasks.filter((t) => t.done).length;
   const totalCount = tasks.length;
   const canReassign = interactivity !== "past";
@@ -513,8 +561,56 @@ function StageSection({
               stageIdx={stageIdx}
               onToggle={onToggle}
               onReassign={onReassignTask}
+              onDelete={onDeleteTask}
             />
           ))}
+
+          {interactivity === "current" && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const name = newTaskName.trim();
+                if (!name) return;
+                onAddTask(name);
+                setNewTaskName("");
+              }}
+              style={{ display: "flex", gap: 6, marginTop: 2 }}
+            >
+              <input
+                type="text"
+                value={newTaskName}
+                onChange={(e) => setNewTaskName(e.target.value)}
+                placeholder="Add a task…"
+                style={{
+                  flex: 1,
+                  padding: "9px 12px",
+                  borderRadius: 8,
+                  border: "1px dashed rgba(11,27,43,0.2)",
+                  background: "rgba(255,255,255,0.5)",
+                  fontFamily: "var(--font-sans)",
+                  fontSize: 13.5,
+                  color: "#0B1B2B",
+                  outline: "none",
+                }}
+              />
+              <button
+                type="submit"
+                disabled={!newTaskName.trim()}
+                style={{
+                  padding: "9px 14px",
+                  borderRadius: 8,
+                  border: "none",
+                  background: newTaskName.trim() ? "#2E6B5E" : "rgba(11,27,43,0.08)",
+                  color: newTaskName.trim() ? "#fff" : "rgba(11,27,43,0.3)",
+                  fontWeight: 600,
+                  fontSize: 13,
+                  cursor: newTaskName.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                Add
+              </button>
+            </form>
+          )}
         </div>
       )}
     </div>
@@ -530,6 +626,7 @@ function TaskRow({
   stageIdx,
   onToggle,
   onReassign,
+  onDelete,
 }: {
   task: Task;
   interactivity: Interactivity;
@@ -539,9 +636,11 @@ function TaskRow({
   stageIdx: number;
   onToggle: (t: Task) => void;
   onReassign: (taskId: string) => void;
+  onDelete: (taskId: string) => void;
 }) {
   const canToggle = interactivity === "current";
   const canReassign = interactivity !== "past";
+  const canDelete = interactivity === "current" && !task.done;
   const dim = interactivity === "current" ? (task.done ? 0.65 : 1) : 0.78;
 
   return (
@@ -623,6 +722,26 @@ function TaskRow({
             color={avatarColorFromProfiles(task.assignee, profiles)}
           />
         </button>
+        {canDelete && (
+          <button
+            type="button"
+            aria-label="Delete task"
+            onClick={() => onDelete(task.id)}
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: "2px 4px",
+              cursor: "pointer",
+              color: "rgba(11,27,43,0.25)",
+              fontSize: 16,
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            ×
+          </button>
+        )}
       </div>
 
       {interactivity === "current" && (
@@ -646,6 +765,159 @@ function TaskRow({
           {notes.length} note{notes.length !== 1 ? "s" : ""}
         </div>
       )}
+    </div>
+  );
+}
+
+function EditTurnSheet({
+  turn,
+  onClose,
+}: {
+  turn: TurnWithTasks;
+  onClose: () => void;
+}) {
+  const [unit, setUnit] = useState(turn.unit);
+  const [vacateDate, setVacateDate] = useState(turn.vacate_date);
+  const [targetDate, setTargetDate] = useState(turn.target_date);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateTurnAction(turn.id, {
+        unit: unit.trim(),
+        vacate_date: vacateDate,
+        target_date: targetDate,
+      });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    setSaving(true);
+    try {
+      await deleteTurnAction(turn.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed");
+      setSaving(false);
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: "1px solid rgba(11,27,43,0.15)",
+    background: "#fff",
+    fontFamily: "var(--font-sans)",
+    fontSize: 14,
+    color: "#0B1B2B",
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{ position: "absolute", inset: 0, background: "rgba(11,27,43,0.4)", zIndex: 10, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: "#F5F1E8", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: "20px 16px 32px", boxShadow: "0 -8px 24px rgba(11,27,43,0.18)" }}
+      >
+        <div style={{ fontWeight: 600, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.16em", color: "#2E6B5E", marginBottom: 16 }}>
+          Edit Turn
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>Unit</label>
+            <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>Vacated</label>
+            <input type="date" value={vacateDate} onChange={(e) => setVacateDate(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>Target date</label>
+            <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+
+        {error && (
+          <p style={{ marginTop: 10, fontSize: 13, color: "#C45C3B" }}>{error}</p>
+        )}
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !unit.trim()}
+          style={{
+            marginTop: 18,
+            width: "100%",
+            padding: 13,
+            borderRadius: 8,
+            border: "none",
+            background: saving || !unit.trim() ? "rgba(11,27,43,0.1)" : "#2E6B5E",
+            color: saving || !unit.trim() ? "rgba(11,27,43,0.35)" : "#fff",
+            fontWeight: 600,
+            fontSize: 14.5,
+            cursor: saving || !unit.trim() ? "not-allowed" : "pointer",
+          }}
+        >
+          {saving && !confirmDelete ? "Saving…" : "Save changes"}
+        </button>
+
+        {!confirmDelete ? (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            style={{ marginTop: 8, width: "100%", padding: 13, borderRadius: 8, border: "1px solid rgba(196,92,59,0.3)", background: "transparent", color: "#C45C3B", fontWeight: 500, fontSize: 14, cursor: "pointer" }}
+          >
+            Delete turn…
+          </button>
+        ) : (
+          <div style={{ marginTop: 8, background: "rgba(196,92,59,0.08)", border: "1px solid rgba(196,92,59,0.25)", borderRadius: 8, padding: "12px 14px" }}>
+            <p style={{ margin: "0 0 10px", fontSize: 13.5, color: "#C45C3B", fontWeight: 500 }}>
+              Delete this turn and all its tasks? This cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(false)}
+                style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid rgba(11,27,43,0.15)", background: "transparent", color: "rgba(11,27,43,0.6)", fontWeight: 500, fontSize: 13.5, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={saving}
+                style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#C45C3B", color: "#fff", fontWeight: 600, fontSize: 13.5, cursor: saving ? "not-allowed" : "pointer" }}
+              >
+                {saving ? "Deleting…" : "Yes, delete"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ marginTop: 10, width: "100%", padding: 12, background: "transparent", border: "1px solid rgba(11,27,43,0.15)", borderRadius: 8, cursor: "pointer", fontWeight: 500, fontSize: 14, color: "rgba(11,27,43,0.6)" }}
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

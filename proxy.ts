@@ -3,10 +3,15 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Was `middleware.ts` pre-v16; renamed to `proxy.ts` per Next.js 16.
 
+// Set NEXT_PUBLIC_REQUIRE_AUTH=true to enforce login. Unset or empty = open access.
+const REQUIRE_AUTH = process.env.NEXT_PUBLIC_REQUIRE_AUTH === "true";
+
 // Paths that never require auth
 const PUBLIC_PREFIXES = ["/login", "/auth/", "/onboarding"];
 
 export async function proxy(request: NextRequest) {
+  if (!REQUIRE_AUTH) return NextResponse.next();
+
   const { pathname } = request.nextUrl;
 
   // Let public paths through immediately
