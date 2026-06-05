@@ -1,14 +1,15 @@
 import { redirect } from "next/navigation";
 import { NewTurnForm } from "@/components/new-turn/NewTurnForm";
 import { getCurrentProfile } from "@/lib/current-user";
-import { loadProfiles, loadProperties } from "@/lib/data";
+import { loadProfiles, loadProperties, loadStageDefaultTasks } from "@/lib/data";
 import { membersOnTeam } from "@/lib/stages";
 
 export default async function NewTurnPage() {
-  const [properties, profiles, currentUser] = await Promise.all([
+  const [properties, profiles, currentUser, inspectionDefaults] = await Promise.all([
     loadProperties(),
     loadProfiles(),
     getCurrentProfile(),
+    loadStageDefaultTasks(0),
   ]);
 
   if (!currentUser) redirect("/login");
@@ -21,6 +22,7 @@ export default async function NewTurnPage() {
       properties={properties}
       defaultAssignee={currentUser.initials}
       officeMembers={officeMembers}
+      inspectionDefaults={inspectionDefaults.map((t) => t.name)}
     />
   );
 }

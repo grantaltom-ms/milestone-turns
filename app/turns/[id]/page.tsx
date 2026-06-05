@@ -20,7 +20,7 @@ export default async function TurnDetailPage({
 
   const [profiles, initialNotes] = await Promise.all([
     loadProfiles(),
-    loadTaskNotes(id, turn.stage_idx),
+    loadTaskNotes(id), // all stages — Detail renders the full pipeline now
   ]);
 
   return (

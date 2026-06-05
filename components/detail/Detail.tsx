@@ -25,6 +25,8 @@ import {
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import type { Profile, Task, TaskNote, TurnWithTasks } from "@/lib/supabase/types";
 
+type Interactivity = "past" | "current" | "future";
+
 export function Detail({
   turn,
   profiles,
@@ -38,8 +40,11 @@ export function Detail({
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(turn.tasks);
-  const [pickerTaskId, setPickerTaskId] = useState<string | null>(null);
-  const [stagePickerOpen, setStagePickerOpen] = useState(false);
+  const [picker, setPicker] = useState<
+    | { kind: "task"; taskId: string }
+    | { kind: "stage"; stageIdx: number }
+    | null
+  >(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => { setTasks(turn.tasks); }, [turn.tasks]);
@@ -68,50 +73,102 @@ export function Detail({
   }, [turn.id, router]);
 
   const isLast = turn.stage_idx === STAGES.length - 1;
-  const open = tasks.filter((t) => !t.done).length;
-  const allDone = open === 0;
 
-  const stageTeam = STAGE_TEAM[turn.stage_idx];
-  const pickerMembers = useMemo<ProfileMember[]>(
-    () => membersOnTeam(stageTeam, profiles),
-    [stageTeam, profiles],
-  );
-
-  // Build a lookup: initials → TaskNote[]
-  const notesByTask = useMemo(() => {
-    const map = new Map<string, TaskNote[]>();
-    for (const note of initialNotes) {
-      const arr = map.get(note.task_name) ?? [];
-      arr.push(note);
-      map.set(note.task_name, arr);
+  // Group tasks by stage for the full-pipeline view.
+  const tasksByStage = useMemo(() => {
+    const m = new Map<number, Task[]>();
+    for (let i = 0; i < STAGES.length; i++) m.set(i, []);
+    for (const t of tasks) {
+      const arr = m.get(t.stage_idx);
+      if (arr) arr.push(t);
     }
-    return map;
+    for (const arr of m.values()) arr.sort((a, b) => a.sort_order - b.sort_order);
+    return m;
+  }, [tasks]);
+
+  // Build per-stage notes lookup: stageIdx → (task_name → notes[])
+  const notesByStageTask = useMemo(() => {
+    const m = new Map<number, Map<string, TaskNote[]>>();
+    for (const note of initialNotes) {
+      const stageMap = m.get(note.stage_idx) ?? new Map<string, TaskNote[]>();
+      const arr = stageMap.get(note.task_name) ?? [];
+      arr.push(note);
+      stageMap.set(note.task_name, arr);
+      m.set(note.stage_idx, stageMap);
+    }
+    return m;
   }, [initialNotes]);
 
+  const currentTasks = tasksByStage.get(turn.stage_idx) ?? [];
+  const openCurrent = currentTasks.filter((t) => !t.done).length;
+  const allCurrentDone = openCurrent === 0 && currentTasks.length > 0;
+
+  const pickerStageIdx =
+    picker?.kind === "stage"
+      ? picker.stageIdx
+      : picker?.kind === "task"
+        ? tasks.find((t) => t.id === picker.taskId)?.stage_idx ?? turn.stage_idx
+        : turn.stage_idx;
+  const pickerStageTeam = STAGE_TEAM[pickerStageIdx];
+  const pickerMembers = useMemo<ProfileMember[]>(
+    () => membersOnTeam(pickerStageTeam, profiles),
+    [pickerStageTeam, profiles],
+  );
+
+  function interactivityFor(stageIdx: number): Interactivity {
+    if (stageIdx < turn.stage_idx) return "past";
+    if (stageIdx === turn.stage_idx) return "current";
+    return "future";
+  }
+
   function onToggle(task: Task) {
+    if (task.stage_idx !== turn.stage_idx) return;
     const next = !task.done;
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: next } : t)));
+    const nowIso = new Date().toISOString();
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === task.id
+          ? {
+              ...t,
+              done: next,
+              done_at: next ? nowIso : null,
+              completed_by: next ? currentUser.initials : null,
+            }
+          : t,
+      ),
+    );
     startTransition(() => { void toggleTaskAction(task.id, next); });
   }
 
   function onAdvance() {
-    if (!allDone || isLast) return;
+    if (!allCurrentDone || isLast) return;
     startTransition(() => { void advanceTurnAction(turn.id); });
   }
 
   function onPickTaskAssignee(taskId: string, newAssignee: string) {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, assignee: newAssignee } : t)));
-    setPickerTaskId(null);
+    setPicker(null);
     startTransition(() => { void setTaskAssigneeAction(taskId, newAssignee); });
   }
 
-  function onPickStageAssignee(initials: string) {
-    setTasks((prev) => prev.map((t) => ({ ...t, assignee: initials })));
-    setStagePickerOpen(false);
-    startTransition(() => { void setStageAssigneeAction(turn.id, initials); });
+  function onPickStageAssignee(stageIdx: number, newAssignee: string) {
+    setTasks((prev) => prev.map((t) => (t.stage_idx === stageIdx ? { ...t, assignee: newAssignee } : t)));
+    setPicker(null);
+    // setStageAssigneeAction bulk-updates all tasks for the turn, so it's the
+    // right action only when stageIdx === current stage. For non-current
+    // stages, fall back to per-task updates.
+    startTransition(() => {
+      if (stageIdx === turn.stage_idx) {
+        void setStageAssigneeAction(turn.id, newAssignee);
+      } else {
+        // Per-task update for past/future stage
+        const targets = tasks.filter((t) => t.stage_idx === stageIdx);
+        for (const t of targets) void setTaskAssigneeAction(t.id, newAssignee);
+      }
+    });
   }
 
-  const stageAssignee = tasks[0]?.assignee ?? turn.assignee;
+  const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office" : "Maintenance";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -161,149 +218,35 @@ export function Detail({
         </div>
         <SegBar stageIdx={turn.stage_idx} dark />
         <div style={{ fontWeight: 500, fontSize: 11.5, color: "rgba(245,241,232,0.5)", marginTop: 7, paddingBottom: 16, letterSpacing: "0.03em" }}>
-          Stage {turn.stage_idx + 1} of {STAGES.length} — {STAGES[turn.stage_idx].name} ({stageTeam})
+          Stage {turn.stage_idx + 1} of {STAGES.length} — {STAGES[turn.stage_idx].name} ({currentStageTeamLabel})
         </div>
       </div>
 
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 100px", background: "#F5F1E8" }}>
+        {STAGES.map((stage, i) => (
+          <StageSection
+            key={i}
+            stageIdx={i}
+            stageName={stage.name}
+            stageColor={stage.color}
+            interactivity={interactivityFor(i)}
+            tasks={tasksByStage.get(i) ?? []}
+            profiles={profiles}
+            notesByTask={notesByStageTask.get(i) ?? new Map()}
+            turnId={turn.id}
+            onToggle={onToggle}
+            onReassignTask={(taskId) => setPicker({ kind: "task", taskId })}
+            onReassignStage={(stageIdx) => setPicker({ kind: "stage", stageIdx })}
+          />
+        ))}
 
-        {/* Stage-level assignment row */}
-        {pickerMembers.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 14,
-              padding: "10px 12px",
-              background: "#fff",
-              borderRadius: 8,
-              border: "1px solid rgba(11,27,43,0.07)",
-            }}
-          >
-            <span style={{ flex: 1, fontWeight: 500, fontSize: 12.5, color: "rgba(11,27,43,0.55)" }}>
-              Stage assigned to
-            </span>
-            <button
-              type="button"
-              onClick={() => setStagePickerOpen(true)}
-              title="Change stage assignee"
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 7,
-              }}
-            >
-              <Avatar
-                initials={stageAssignee}
-                size={24}
-                color={avatarColorFromProfiles(stageAssignee, profiles)}
-              />
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#0B1B2B" }}>
-                {profiles.find((p) => p.initials === stageAssignee)?.name ?? stageAssignee}
-              </span>
-              <span style={{ fontSize: 11, color: "rgba(11,27,43,0.35)" }}>›</span>
-            </button>
-          </div>
-        )}
-
-        <div style={{ fontWeight: 600, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.16em", color: "#2E6B5E", marginBottom: 11 }}>
-          Current stage tasks
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {tasks.map((task) => (
-            <div
-              key={task.id}
-              style={{
-                padding: "11px 14px 12px",
-                background: "#fff",
-                borderRadius: 8,
-                border: "1px solid rgba(11,27,43,0.07)",
-                opacity: task.done ? 0.65 : 1,
-              }}
-            >
-              {/* Task row */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                {/* Checkbox + name */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onToggle(task)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onToggle(task); }}
-                  style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, cursor: "pointer" }}
-                >
-                  <div
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: 5,
-                      border: `2px solid ${task.done ? "#2E6B5E" : "rgba(11,27,43,0.2)"}`,
-                      background: task.done ? "#2E6B5E" : "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                      transition: "all 0.15s",
-                    }}
-                  >
-                    {task.done && (
-                      <svg width="12" height="9" viewBox="0 0 12 9">
-                        <path d="M1 4l3.5 3.5L11 1" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                      </svg>
-                    )}
-                  </div>
-                  <span
-                    style={{
-                      flex: 1,
-                      fontWeight: 400,
-                      fontSize: 14,
-                      lineHeight: 1.4,
-                      color: "#0B1B2B",
-                      textDecoration: task.done ? "line-through" : "none",
-                    }}
-                  >
-                    {task.name}
-                  </span>
-                </div>
-
-                {/* Task-level assignee avatar */}
-                <button
-                  type="button"
-                  aria-label={`Reassign task (currently ${task.assignee})`}
-                  onClick={() => setPickerTaskId(task.id)}
-                  style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
-                >
-                  <Avatar
-                    initials={task.assignee}
-                    size={24}
-                    color={avatarColorFromProfiles(task.assignee, profiles)}
-                  />
-                </button>
-              </div>
-
-              {/* Notes */}
-              <TaskNotes
-                turnId={turn.id}
-                stageIdx={turn.stage_idx}
-                taskName={task.name}
-                initialNotes={notesByTask.get(task.name) ?? []}
-              />
-            </div>
-          ))}
-        </div>
-
-        {allDone && !isLast && (
+        {allCurrentDone && !isLast && (
           <div style={{ background: "rgba(46,107,94,0.1)", border: "1px solid rgba(46,107,94,0.25)", borderRadius: 8, padding: "12px 14px", marginTop: 16, fontWeight: 400, fontSize: 13.5, lineHeight: 1.5, color: "#2A5C46" }}>
             All done. Tap below to advance to <strong>{STAGES[turn.stage_idx + 1].name}</strong>.
           </div>
         )}
-        {isLast && allDone && (
+        {isLast && allCurrentDone && (
           <div style={{ background: "rgba(61,122,95,0.12)", border: "1px solid rgba(61,122,95,0.25)", borderRadius: 8, padding: "12px 14px", marginTop: 16, fontWeight: 600, fontSize: 13.5, color: "#3D7A5F" }}>
             ✓ This unit is Ready.
           </div>
@@ -316,47 +259,353 @@ export function Detail({
           <button
             type="button"
             onClick={onAdvance}
-            disabled={!allDone}
+            disabled={!allCurrentDone}
             style={{
               width: "100%",
               padding: 15,
               borderRadius: 8,
               border: "none",
-              cursor: allDone ? "pointer" : "not-allowed",
-              background: allDone ? "#2E6B5E" : "#E8E4DC",
-              color: allDone ? "#fff" : "rgba(11,27,43,0.28)",
+              cursor: allCurrentDone ? "pointer" : "not-allowed",
+              background: allCurrentDone ? "#2E6B5E" : "#E8E4DC",
+              color: allCurrentDone ? "#fff" : "rgba(11,27,43,0.28)",
               fontWeight: 600,
               fontSize: 15,
               transition: "background 0.2s",
             }}
           >
-            {allDone
+            {allCurrentDone
               ? `Advance to ${STAGES[turn.stage_idx + 1].name} →`
-              : `${open} task${open !== 1 ? "s" : ""} left before advancing`}
+              : `${openCurrent} task${openCurrent !== 1 ? "s" : ""} left before advancing`}
           </button>
         </div>
       )}
 
-      {/* Per-task assignee picker */}
-      {pickerTaskId && (
+      {/* Pickers */}
+      {picker && (
         <AssigneeSheet
           members={pickerMembers}
-          teamLabel={stageTeam === "office" ? "Office team" : "Maintenance team"}
-          current={tasks.find((t) => t.id === pickerTaskId)?.assignee}
-          onPick={(initials) => onPickTaskAssignee(pickerTaskId, initials)}
-          onClose={() => setPickerTaskId(null)}
+          teamLabel={
+            picker.kind === "stage"
+              ? `Assign all ${STAGES[picker.stageIdx].name} tasks`
+              : pickerStageTeam === "office"
+                ? "Office team"
+                : "Maintenance team"
+          }
+          current={
+            picker.kind === "stage"
+              ? tasksByStage.get(picker.stageIdx)?.[0]?.assignee
+              : tasks.find((t) => t.id === picker.taskId)?.assignee
+          }
+          onPick={(initials) =>
+            picker.kind === "stage"
+              ? onPickStageAssignee(picker.stageIdx, initials)
+              : onPickTaskAssignee(picker.taskId, initials)
+          }
+          onClose={() => setPicker(null)}
         />
       )}
+    </div>
+  );
+}
 
-      {/* Stage assignee picker */}
-      {stagePickerOpen && (
-        <AssigneeSheet
-          members={pickerMembers}
-          teamLabel={`Assign all ${stageTeam} tasks`}
-          current={stageAssignee}
-          onPick={onPickStageAssignee}
-          onClose={() => setStagePickerOpen(false)}
+function StageSection({
+  stageIdx,
+  stageName,
+  stageColor,
+  interactivity,
+  tasks,
+  profiles,
+  notesByTask,
+  turnId,
+  onToggle,
+  onReassignTask,
+  onReassignStage,
+}: {
+  stageIdx: number;
+  stageName: string;
+  stageColor: string;
+  interactivity: Interactivity;
+  tasks: Task[];
+  profiles: ProfileMember[];
+  notesByTask: Map<string, TaskNote[]>;
+  turnId: string;
+  onToggle: (t: Task) => void;
+  onReassignTask: (taskId: string) => void;
+  onReassignStage: (stageIdx: number) => void;
+}) {
+  const [open, setOpen] = useState(interactivity === "current");
+  const doneCount = tasks.filter((t) => t.done).length;
+  const totalCount = tasks.length;
+  const canReassign = interactivity !== "past";
+
+  const summary =
+    interactivity === "past"
+      ? totalCount > 0
+        ? `Complete · ${totalCount} task${totalCount !== 1 ? "s" : ""}`
+        : "Complete"
+      : interactivity === "future"
+        ? `${totalCount} task${totalCount !== 1 ? "s" : ""} queued`
+        : totalCount > 0
+          ? `${doneCount} of ${totalCount} done`
+          : "No tasks";
+
+  const eyebrowColor =
+    interactivity === "past"
+      ? "rgba(11,27,43,0.45)"
+      : interactivity === "future"
+        ? "rgba(11,27,43,0.55)"
+        : "#2E6B5E";
+
+  const stageAssignee = tasks[0]?.assignee;
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          padding: "0 0 8px 0",
+          textAlign: "left",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+        aria-expanded={open}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            width: 8,
+            height: 8,
+            borderRadius: 2,
+            background: interactivity === "future" ? "rgba(11,27,43,0.15)" : stageColor,
+            flexShrink: 0,
+          }}
         />
+        <span
+          style={{
+            fontWeight: 600,
+            fontSize: 10.5,
+            textTransform: "uppercase",
+            letterSpacing: "0.16em",
+            color: eyebrowColor,
+          }}
+        >
+          {interactivity === "past" && "✓ "}
+          {stageIdx + 1}. {stageName} · {summary}
+        </span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 11,
+            color: "rgba(11,27,43,0.4)",
+            transform: open ? "rotate(90deg)" : "rotate(0)",
+            transition: "transform 0.15s",
+          }}
+          aria-hidden="true"
+        >
+          ▸
+        </span>
+      </button>
+
+      {open && tasks.length === 0 && (
+        <div style={{ fontWeight: 400, fontSize: 12.5, color: "rgba(11,27,43,0.4)", fontStyle: "italic", padding: "8px 4px" }}>
+          No tasks for this stage.
+        </div>
+      )}
+
+      {open && tasks.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {/* Stage-level assignee row (only when interactive) */}
+          {canReassign && stageAssignee && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 12px",
+                background: "rgba(255,255,255,0.6)",
+                borderRadius: 8,
+                border: "1px solid rgba(11,27,43,0.05)",
+              }}
+            >
+              <span style={{ flex: 1, fontWeight: 500, fontSize: 12, color: "rgba(11,27,43,0.55)" }}>
+                Stage assigned to
+              </span>
+              <button
+                type="button"
+                onClick={() => onReassignStage(stageIdx)}
+                title="Change stage assignee"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Avatar
+                  initials={stageAssignee}
+                  size={22}
+                  color={avatarColorFromProfiles(stageAssignee, profiles)}
+                />
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: "#0B1B2B" }}>
+                  {profiles.find((p) => p.initials === stageAssignee)?.name ?? stageAssignee}
+                </span>
+                <span style={{ fontSize: 11, color: "rgba(11,27,43,0.35)" }}>›</span>
+              </button>
+            </div>
+          )}
+
+          {tasks.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              interactivity={interactivity}
+              profiles={profiles}
+              notes={notesByTask.get(task.name) ?? []}
+              turnId={turnId}
+              stageIdx={stageIdx}
+              onToggle={onToggle}
+              onReassign={onReassignTask}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskRow({
+  task,
+  interactivity,
+  profiles,
+  notes,
+  turnId,
+  stageIdx,
+  onToggle,
+  onReassign,
+}: {
+  task: Task;
+  interactivity: Interactivity;
+  profiles: ProfileMember[];
+  notes: TaskNote[];
+  turnId: string;
+  stageIdx: number;
+  onToggle: (t: Task) => void;
+  onReassign: (taskId: string) => void;
+}) {
+  const canToggle = interactivity === "current";
+  const canReassign = interactivity !== "past";
+  const dim = interactivity === "current" ? (task.done ? 0.65 : 1) : 0.78;
+
+  return (
+    <div
+      style={{
+        padding: "11px 14px 12px",
+        background: interactivity === "current" ? "#fff" : "rgba(255,255,255,0.6)",
+        borderRadius: 8,
+        border: "1px solid rgba(11,27,43,0.07)",
+        opacity: dim,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div
+          role={canToggle ? "button" : undefined}
+          tabIndex={canToggle ? 0 : -1}
+          onClick={canToggle ? () => onToggle(task) : undefined}
+          onKeyDown={
+            canToggle
+              ? (e) => { if (e.key === "Enter" || e.key === " ") onToggle(task); }
+              : undefined
+          }
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flex: 1,
+            cursor: canToggle ? "pointer" : "default",
+          }}
+        >
+          <div
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: 5,
+              border: `2px solid ${task.done ? "#2E6B5E" : "rgba(11,27,43,0.2)"}`,
+              background: task.done ? "#2E6B5E" : "transparent",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              transition: "all 0.15s",
+            }}
+          >
+            {task.done && (
+              <svg width="12" height="9" viewBox="0 0 12 9">
+                <path d="M1 4l3.5 3.5L11 1" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+            )}
+          </div>
+          <span
+            style={{
+              flex: 1,
+              fontWeight: 400,
+              fontSize: 14,
+              lineHeight: 1.4,
+              color: "#0B1B2B",
+              textDecoration: task.done ? "line-through" : "none",
+            }}
+          >
+            {task.name}
+          </span>
+        </div>
+        <button
+          type="button"
+          disabled={!canReassign}
+          aria-label={canReassign ? `Reassign (currently ${task.assignee})` : `Assigned to ${task.assignee}`}
+          onClick={canReassign ? () => onReassign(task.id) : undefined}
+          style={{
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            cursor: canReassign ? "pointer" : "default",
+          }}
+        >
+          <Avatar
+            initials={task.assignee}
+            size={24}
+            color={avatarColorFromProfiles(task.assignee, profiles)}
+          />
+        </button>
+      </div>
+
+      {interactivity === "current" && (
+        <TaskNotes
+          turnId={turnId}
+          stageIdx={stageIdx}
+          taskName={task.name}
+          initialNotes={notes}
+        />
+      )}
+      {interactivity !== "current" && notes.length > 0 && (
+        <div
+          style={{
+            marginTop: 8,
+            paddingTop: 8,
+            borderTop: "1px dashed rgba(11,27,43,0.08)",
+            fontSize: 12,
+            color: "rgba(11,27,43,0.55)",
+          }}
+        >
+          {notes.length} note{notes.length !== 1 ? "s" : ""}
+        </div>
       )}
     </div>
   );

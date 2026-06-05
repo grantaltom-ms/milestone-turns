@@ -20,7 +20,7 @@ export async function loadTurns(): Promise<Turn[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("turns")
-    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, created_at, updated_at")
+    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as Omit<Turn, "property_name">[];
@@ -33,13 +33,14 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   const [{ data: turn, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase
       .from("turns")
-      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, created_at, updated_at")
+      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at")
       .eq("id", id)
       .maybeSingle(),
     supabase
       .from("turn_tasks")
-      .select("id, turn_id, name, assignee, done, sort_order")
+      .select("id, turn_id, name, assignee, done, sort_order, stage_idx, done_at, completed_by")
       .eq("turn_id", id)
+      .order("stage_idx", { ascending: true })
       .order("sort_order", { ascending: true }),
   ]);
   if (tErr) throw tErr;
@@ -53,14 +54,24 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   };
 }
 
+// Open + total tasks counts per turn, scoped to the turn's CURRENT stage. Now
+// that tasks persist across all 6 stages (migration 0008), we filter to the
+// current stage so Board cards still reflect "n left to advance".
 export async function loadTaskCounts(): Promise<Map<string, { open: number; total: number }>> {
   const supabase = await getServerSupabase();
-  const { data, error } = await supabase
-    .from("turn_tasks")
-    .select("turn_id, done");
-  if (error) throw error;
+  const [{ data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
+    supabase.from("turns").select("id, stage_idx"),
+    supabase.from("turn_tasks").select("turn_id, stage_idx, done"),
+  ]);
+  if (tErr) throw tErr;
+  if (kErr) throw kErr;
+
+  const currentStageByTurn = new Map<string, number>();
+  for (const t of turns ?? []) currentStageByTurn.set(t.id, t.stage_idx);
+
   const map = new Map<string, { open: number; total: number }>();
-  for (const row of data ?? []) {
+  for (const row of tasks ?? []) {
+    if (currentStageByTurn.get(row.turn_id) !== row.stage_idx) continue;
     const cur = map.get(row.turn_id) ?? { open: 0, total: 0 };
     cur.total += 1;
     if (!row.done) cur.open += 1;
@@ -91,15 +102,15 @@ export async function loadProfiles(): Promise<ProfileMember[]> {
   return (data ?? []) as ProfileMember[];
 }
 
-/** Load all task notes for a specific turn + stage. */
-export async function loadTaskNotes(turnId: string, stageIdx: number): Promise<TaskNote[]> {
+/** Load task notes for a turn. Pass stageIdx to scope to one stage; omit for all stages. */
+export async function loadTaskNotes(turnId: string, stageIdx?: number): Promise<TaskNote[]> {
   const supabase = await getServerSupabase();
-  const { data, error } = await supabase
+  let q = supabase
     .from("task_notes")
     .select("id, turn_id, stage_idx, task_name, author_id, content, created_at, profiles(name)")
-    .eq("turn_id", turnId)
-    .eq("stage_idx", stageIdx)
-    .order("created_at", { ascending: true });
+    .eq("turn_id", turnId);
+  if (stageIdx !== undefined) q = q.eq("stage_idx", stageIdx);
+  const { data, error } = await q.order("created_at", { ascending: true });
   if (error) throw error;
   return ((data ?? []) as unknown[]).map((row) => {
     const r = row as {
@@ -118,6 +129,22 @@ export async function loadTaskNotes(turnId: string, stageIdx: number): Promise<T
       created_at: r.created_at,
     } satisfies TaskNote;
   });
+}
+
+export type StageDefaultTask = { stage_idx: number; name: string; sort_order: number };
+
+/** Single source of truth for default checklists per stage. */
+export async function loadStageDefaultTasks(stageIdx?: number): Promise<StageDefaultTask[]> {
+  const supabase = await getServerSupabase();
+  let q = supabase
+    .from("stage_default_tasks")
+    .select("stage_idx, name, sort_order")
+    .order("stage_idx", { ascending: true })
+    .order("sort_order", { ascending: true });
+  if (stageIdx !== undefined) q = q.eq("stage_idx", stageIdx);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as StageDefaultTask[];
 }
 
 /** Returns only full Profile rows (used for displaying the current user). */
