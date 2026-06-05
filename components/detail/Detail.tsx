@@ -250,41 +250,21 @@ export function Detail({
               ))}
               {(() => {
                 const meta = computeTurnMeta(turn);
-                return (
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {meta.daysInStage > 0 && (
-                      <span
-                        style={{
-                          background: "rgba(245,241,232,0.12)",
-                          color: "rgba(245,241,232,0.88)",
-                          borderRadius: 999,
-                          padding: "3px 9px",
-                          fontWeight: 500,
-                          fontSize: 11.5,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {meta.daysInStage}d in {STAGES[turn.stage_idx].name}
-                      </span>
-                    )}
-                    {meta.isOverdue && (
-                      <span
-                        style={{
-                          background: "#C45C3B",
-                          color: "#fff",
-                          borderRadius: 999,
-                          padding: "3px 9px",
-                          fontWeight: 600,
-                          fontSize: 11,
-                          letterSpacing: "0.04em",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        OVERDUE
-                      </span>
-                    )}
-                  </div>
-                );
+                return meta.daysInStage > 0 ? (
+                  <span
+                    style={{
+                      background: "rgba(245,241,232,0.12)",
+                      color: "rgba(245,241,232,0.88)",
+                      borderRadius: 999,
+                      padding: "3px 9px",
+                      fontWeight: 500,
+                      fontSize: 11.5,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {meta.daysInStage}d in {STAGES[turn.stage_idx].name}
+                  </span>
+                ) : null;
               })()}
             </div>
           </div>

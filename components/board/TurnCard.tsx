@@ -21,7 +21,6 @@ export function TurnCard({
 }) {
   const stageName = STAGES[turn.stage_idx]?.name ?? "?";
   const days = meta?.daysInStage ?? 0;
-  const overdue = meta?.isOverdue ?? false;
 
   return (
     <Link
@@ -30,7 +29,7 @@ export function TurnCard({
         display: "block",
         background: "#fff",
         borderRadius: 10,
-        border: `1px solid ${overdue ? "rgba(196,92,59,0.4)" : "rgba(11,27,43,0.08)"}`,
+        border: "1px solid rgba(11,27,43,0.08)",
         padding: "14px 15px",
         marginBottom: 10,
         textDecoration: "none",
@@ -45,22 +44,6 @@ export function TurnCard({
           <span style={{ color: "#2E6B5E" }}>{turn.unit}</span>
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {overdue && (
-            <span
-              style={{
-                background: "#C45C3B",
-                color: "#fff",
-                borderRadius: 999,
-                padding: "2px 8px",
-                fontWeight: 600,
-                fontSize: 10.5,
-                letterSpacing: "0.04em",
-                whiteSpace: "nowrap",
-              }}
-            >
-              OVERDUE
-            </span>
-          )}
           <StageTag stageIdx={turn.stage_idx} />
         </div>
       </div>
