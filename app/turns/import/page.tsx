@@ -1,12 +1,18 @@
+import { redirect } from "next/navigation";
 import { ImportForm } from "@/components/import/ImportForm";
-import { getCurrentInitials } from "@/lib/current-user";
+import { getCurrentProfile } from "@/lib/current-user";
+import { loadProfiles } from "@/lib/data";
 import { loadPropertyLookup } from "@/lib/import-data";
+import { membersOnTeam } from "@/lib/stages";
 
 export default async function ImportTurnsPage() {
-  const [{ byName, nameById }, defaultAssignee] = await Promise.all([
+  const [{ byName, nameById }, currentUser, profiles] = await Promise.all([
     loadPropertyLookup(),
-    getCurrentInitials(),
+    getCurrentProfile(),
+    loadProfiles(),
   ]);
+
+  if (!currentUser) redirect("/login");
 
   // Map → plain object for crossing the server/client boundary
   const byNameObj: Record<string, number> = {};
@@ -14,11 +20,14 @@ export default async function ImportTurnsPage() {
   const nameByIdObj: Record<string, string> = {};
   nameById.forEach((v, k) => { nameByIdObj[String(k)] = v; });
 
+  const officeMembers = membersOnTeam("office", profiles);
+
   return (
     <ImportForm
       propertyByName={byNameObj}
       propertyNameById={nameByIdObj}
-      defaultAssignee={defaultAssignee}
+      defaultAssignee={currentUser.initials}
+      officeMembers={officeMembers}
     />
   );
 }

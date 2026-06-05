@@ -1,5 +1,6 @@
 import { getServerSupabase } from "@/lib/supabase/server";
-import type { PropertyRow, Task, Turn, TurnWithTasks } from "@/lib/supabase/types";
+import type { Profile, PropertyRow, Task, TaskNote, Turn, TurnWithTasks } from "@/lib/supabase/types";
+import type { ProfileMember } from "@/lib/stages";
 
 async function fetchPropertyNames(ids: number[]): Promise<Map<number, string>> {
   if (ids.length === 0) return new Map();
@@ -77,4 +78,55 @@ export async function loadProperties(): Promise<PropertyRow[]> {
     .order("name", { ascending: true });
   if (error) throw error;
   return (data ?? []) as PropertyRow[];
+}
+
+/** Load all profiles as ProfileMember (for assignment pickers). */
+export async function loadProfiles(): Promise<ProfileMember[]> {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, name, email, role, initials, avatar_color")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as ProfileMember[];
+}
+
+/** Load all task notes for a specific turn + stage. */
+export async function loadTaskNotes(turnId: string, stageIdx: number): Promise<TaskNote[]> {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("task_notes")
+    .select("id, turn_id, stage_idx, task_name, author_id, content, created_at, profiles(name)")
+    .eq("turn_id", turnId)
+    .eq("stage_idx", stageIdx)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as unknown[]).map((row) => {
+    const r = row as {
+      id: string; turn_id: string; stage_idx: number; task_name: string;
+      author_id: string; content: string; created_at: string;
+      profiles: { name: string } | null;
+    };
+    return {
+      id: r.id,
+      turn_id: r.turn_id,
+      stage_idx: r.stage_idx,
+      task_name: r.task_name,
+      author_id: r.author_id,
+      author_name: r.profiles?.name ?? "Unknown",
+      content: r.content,
+      created_at: r.created_at,
+    } satisfies TaskNote;
+  });
+}
+
+/** Returns only full Profile rows (used for displaying the current user). */
+export async function loadProfileById(id: string): Promise<Profile | null> {
+  const supabase = await getServerSupabase();
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, name, email, role, initials, avatar_color, created_at")
+    .eq("id", id)
+    .maybeSingle();
+  return data as Profile | null;
 }

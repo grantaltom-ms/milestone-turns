@@ -1,4 +1,3 @@
-import { TEAM } from "@/lib/stages";
 
 export type PropertyLookup = Map<string, number>; // normalized name → property_id
 
@@ -132,9 +131,7 @@ export function validateRow(
   if (!structurallyEmpty) {
     const upper = assignee.trim().toUpperCase();
     if (!upper) errors.push("no assignee picked");
-    else if (!TEAM.includes(upper as (typeof TEAM)[number])) {
-      errors.push(`assignee "${assignee}" not on team`);
-    }
+
   }
 
   return {

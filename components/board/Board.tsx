@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { STAGE_FILTER_CATEGORY } from "@/lib/stages";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
-import type { Turn } from "@/lib/supabase/types";
+import type { Profile, Turn } from "@/lib/supabase/types";
+import { UserHeader } from "@/components/UserHeader";
 import { TurnCard } from "./TurnCard";
 
 type Filter = "All" | "Office" | "Maintenance" | "Ready";
@@ -14,15 +15,15 @@ const FILTERS: Filter[] = ["All", "Office", "Maintenance", "Ready"];
 export function Board({
   turns,
   openCounts,
+  currentUser,
 }: {
   turns: Turn[];
   openCounts: Record<string, number>;
-  meInitials?: string;
+  currentUser: Profile;
 }) {
   const [filter, setFilter] = useState<Filter>("All");
   const router = useRouter();
 
-  // Realtime — refresh on any turn/task change.
   useEffect(() => {
     const supabase = getBrowserSupabase();
     const channel = supabase
@@ -61,6 +62,7 @@ export function Board({
             Unit Turns
           </h1>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <UserHeader profile={currentUser} />
             <Link
               href="/turns/import"
               aria-label="Import CSV"
@@ -79,13 +81,7 @@ export function Board({
               }}
             >
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <path
-                  d="M8 10V2M8 2L5 5M8 2L11 5M3 11v1.5A1.5 1.5 0 004.5 14h7a1.5 1.5 0 001.5-1.5V11"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+                <path d="M8 10V2M8 2L5 5M8 2L11 5M3 11v1.5A1.5 1.5 0 004.5 14h7a1.5 1.5 0 001.5-1.5V11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </Link>
             <Link
@@ -139,15 +135,7 @@ export function Board({
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 32px", background: "#F5F1E8" }}>
         {visible.length === 0 ? (
-          <p
-            style={{
-              textAlign: "center",
-              fontWeight: 400,
-              fontSize: 14,
-              color: "rgba(11,27,43,0.38)",
-              marginTop: 40,
-            }}
-          >
+          <p style={{ textAlign: "center", fontWeight: 400, fontSize: 14, color: "rgba(11,27,43,0.38)", marginTop: 40 }}>
             No units match this filter.
           </p>
         ) : (

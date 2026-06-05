@@ -1,6 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Detail } from "@/components/detail/Detail";
-import { loadTurnWithTasks } from "@/lib/data";
+import { loadProfiles, loadTaskNotes, loadTurnWithTasks } from "@/lib/data";
+import { getCurrentProfile } from "@/lib/current-user";
 
 export default async function TurnDetailPage({
   params,
@@ -8,7 +9,26 @@ export default async function TurnDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const turn = await loadTurnWithTasks(id);
+
+  const [turn, currentUser] = await Promise.all([
+    loadTurnWithTasks(id),
+    getCurrentProfile(),
+  ]);
+
+  if (!currentUser) redirect("/login");
   if (!turn) notFound();
-  return <Detail turn={turn} />;
+
+  const [profiles, initialNotes] = await Promise.all([
+    loadProfiles(),
+    loadTaskNotes(id, turn.stage_idx),
+  ]);
+
+  return (
+    <Detail
+      turn={turn}
+      profiles={profiles}
+      currentUser={currentUser}
+      initialNotes={initialNotes}
+    />
+  );
 }

@@ -12,19 +12,20 @@ import {
   REQUIRED_COLUMNS,
   validateRow,
 } from "@/lib/csv-import";
-import { avatarColor, membersOnTeam } from "@/lib/stages";
+import { type ProfileMember } from "@/lib/stages";
+import { Avatar } from "@/components/Avatar";
 
-// Imports always create turns at Inspection (office team).
-const OFFICE_INITIALS = membersOnTeam("office").map((m) => m.initials);
 
 export function ImportForm({
   propertyByName,
   propertyNameById,
   defaultAssignee,
+  officeMembers,
 }: {
   propertyByName: Record<string, number>;
   propertyNameById: Record<string, string>;
   defaultAssignee: string;
+  officeMembers: ProfileMember[];
 }) {
   const router = useRouter();
   const byName = useMemo(() => new Map(Object.entries(propertyByName)), [propertyByName]);
@@ -33,9 +34,10 @@ export function ImportForm({
     [propertyNameById],
   );
 
-  const initialAssignee = OFFICE_INITIALS.includes(defaultAssignee)
+  const officeinitials = officeMembers.map((m) => m.initials);
+  const initialAssignee = officeinitials.includes(defaultAssignee)
     ? defaultAssignee
-    : OFFICE_INITIALS[0];
+    : (officeinitials[0] ?? "");
 
   const [assignee, setAssignee] = useState<string>(initialAssignee);
   const [fileName, setFileName] = useState<string | null>(null);
@@ -176,27 +178,29 @@ export function ImportForm({
             Assign all to (office team)
           </label>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {OFFICE_INITIALS.map((initials) => {
-              const selected = assignee === initials;
-              const color = avatarColor(initials);
+            {officeMembers.map((m) => {
+              const selected = assignee === m.initials;
               return (
                 <button
-                  key={initials}
+                  key={m.initials}
                   type="button"
-                  onClick={() => setAssignee(initials)}
+                  onClick={() => setAssignee(m.initials)}
+                  title={m.name}
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: "50%",
-                    border: `2.5px solid ${selected ? color : "transparent"}`,
-                    background: selected ? color : "rgba(11,27,43,0.08)",
-                    color: selected ? "#fff" : "#0B1B2B",
-                    fontWeight: 700,
-                    fontSize: 12.5,
+                    background: "transparent",
+                    border: "none",
                     cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 3,
+                    padding: "4px 2px",
                   }}
                 >
-                  {initials}
+                  <div style={{ borderRadius: "50%", outline: selected ? `3px solid ${m.avatar_color}` : "3px solid transparent", outlineOffset: 2 }}>
+                    <Avatar initials={m.initials} size={38} color={m.avatar_color} />
+                  </div>
+                  <span style={{ fontSize: 10, fontWeight: selected ? 600 : 400, color: selected ? "#0B1B2B" : "rgba(11,27,43,0.45)" }}>{m.name.split(" ")[0]}</span>
                 </button>
               );
             })}

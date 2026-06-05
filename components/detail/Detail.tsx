@@ -3,25 +3,43 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { advanceTurnAction, setTaskAssigneeAction, toggleTaskAction } from "@/app/actions";
+import {
+  advanceTurnAction,
+  setStageAssigneeAction,
+  setTaskAssigneeAction,
+  toggleTaskAction,
+} from "@/app/actions";
 import { Avatar } from "@/components/Avatar";
 import { SegBar } from "@/components/SegBar";
 import { StageTag } from "@/components/StageTag";
+import { TaskNotes } from "@/components/TaskNotes";
+import { UserHeader } from "@/components/UserHeader";
 import {
-  avatarColor,
+  avatarColorFromProfiles,
   formatDate,
   membersOnTeam,
   STAGE_TEAM,
   STAGES,
-  type TeamMember,
+  type ProfileMember,
 } from "@/lib/stages";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
-import type { Task, TurnWithTasks } from "@/lib/supabase/types";
+import type { Profile, Task, TaskNote, TurnWithTasks } from "@/lib/supabase/types";
 
-export function Detail({ turn }: { turn: TurnWithTasks }) {
+export function Detail({
+  turn,
+  profiles,
+  currentUser,
+  initialNotes,
+}: {
+  turn: TurnWithTasks;
+  profiles: ProfileMember[];
+  currentUser: Profile;
+  initialNotes: TaskNote[];
+}) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(turn.tasks);
   const [pickerTaskId, setPickerTaskId] = useState<string | null>(null);
+  const [stagePickerOpen, setStagePickerOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => { setTasks(turn.tasks); }, [turn.tasks]);
@@ -40,6 +58,11 @@ export function Detail({ turn }: { turn: TurnWithTasks }) {
         { event: "UPDATE", schema: "public", table: "turns", filter: `id=eq.${turn.id}` },
         () => router.refresh(),
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_notes", filter: `turn_id=eq.${turn.id}` },
+        () => router.refresh(),
+      )
       .subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [turn.id, router]);
@@ -49,7 +72,21 @@ export function Detail({ turn }: { turn: TurnWithTasks }) {
   const allDone = open === 0;
 
   const stageTeam = STAGE_TEAM[turn.stage_idx];
-  const pickerMembers = useMemo<TeamMember[]>(() => membersOnTeam(stageTeam), [stageTeam]);
+  const pickerMembers = useMemo<ProfileMember[]>(
+    () => membersOnTeam(stageTeam, profiles),
+    [stageTeam, profiles],
+  );
+
+  // Build a lookup: initials → TaskNote[]
+  const notesByTask = useMemo(() => {
+    const map = new Map<string, TaskNote[]>();
+    for (const note of initialNotes) {
+      const arr = map.get(note.task_name) ?? [];
+      arr.push(note);
+      map.set(note.task_name, arr);
+    }
+    return map;
+  }, [initialNotes]);
 
   function onToggle(task: Task) {
     const next = !task.done;
@@ -62,41 +99,46 @@ export function Detail({ turn }: { turn: TurnWithTasks }) {
     startTransition(() => { void advanceTurnAction(turn.id); });
   }
 
-  function onPickAssignee(taskId: string, newAssignee: string) {
+  function onPickTaskAssignee(taskId: string, newAssignee: string) {
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, assignee: newAssignee } : t)));
     setPickerTaskId(null);
     startTransition(() => { void setTaskAssigneeAction(taskId, newAssignee); });
   }
 
+  function onPickStageAssignee(initials: string) {
+    setTasks((prev) => prev.map((t) => ({ ...t, assignee: initials })));
+    setStagePickerOpen(false);
+    startTransition(() => { void setStageAssigneeAction(turn.id, initials); });
+  }
+
+  const stageAssignee = tasks[0]?.assignee ?? turn.assignee;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* Header */}
       <div style={{ background: "#1A2E44", padding: "50px 20px 0", flexShrink: 0 }}>
-        <Link
-          href="/"
-          style={{
-            background: "transparent",
-            color: "rgba(245,241,232,0.72)",
-            fontWeight: 500,
-            fontSize: 13.5,
-            textDecoration: "none",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 5,
-            paddingBottom: 10,
-          }}
-        >
-          ← Back
-        </Link>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <Link
+            href="/"
+            style={{
+              background: "transparent",
+              color: "rgba(245,241,232,0.72)",
+              fontWeight: 500,
+              fontSize: 13.5,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            ← Back
+          </Link>
+          <UserHeader profile={currentUser} />
+        </div>
+
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
           <div>
-            <div
-              style={{
-                fontFamily: "var(--font-display)",
-                fontWeight: 700,
-                fontSize: 20,
-                color: "#F5F1E8",
-              }}
-            >
+            <div style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 20, color: "#F5F1E8" }}>
               {turn.property_name ?? "Property"} <span style={{ color: "#5BAE97" }}>{turn.unit}</span>
             </div>
             <div style={{ display: "flex", gap: 16, marginTop: 7 }}>
@@ -105,25 +147,10 @@ export function Detail({ turn }: { turn: TurnWithTasks }) {
                 ["Target", formatDate(turn.target_date)],
               ].map(([label, value]) => (
                 <div key={label}>
-                  <div
-                    style={{
-                      fontWeight: 500,
-                      fontSize: 9.5,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      color: "rgba(245,241,232,0.48)",
-                    }}
-                  >
+                  <div style={{ fontWeight: 500, fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(245,241,232,0.48)" }}>
                     {label}
                   </div>
-                  <div
-                    style={{
-                      fontWeight: 500,
-                      fontSize: 13,
-                      color: "rgba(245,241,232,0.88)",
-                      marginTop: 1,
-                    }}
-                  >
+                  <div style={{ fontWeight: 500, fontSize: 13, color: "rgba(245,241,232,0.88)", marginTop: 1 }}>
                     {value}
                   </div>
                 </div>
@@ -133,167 +160,159 @@ export function Detail({ turn }: { turn: TurnWithTasks }) {
           <StageTag stageIdx={turn.stage_idx} lg />
         </div>
         <SegBar stageIdx={turn.stage_idx} dark />
-        <div
-          style={{
-            fontWeight: 500,
-            fontSize: 11.5,
-            color: "rgba(245,241,232,0.5)",
-            marginTop: 7,
-            paddingBottom: 16,
-            letterSpacing: "0.03em",
-          }}
-        >
+        <div style={{ fontWeight: 500, fontSize: 11.5, color: "rgba(245,241,232,0.5)", marginTop: 7, paddingBottom: 16, letterSpacing: "0.03em" }}>
           Stage {turn.stage_idx + 1} of {STAGES.length} — {STAGES[turn.stage_idx].name} ({stageTeam})
         </div>
       </div>
 
+      {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 100px", background: "#F5F1E8" }}>
-        <div
-          style={{
-            fontWeight: 600,
-            fontSize: 10.5,
-            textTransform: "uppercase",
-            letterSpacing: "0.16em",
-            color: "#2E6B5E",
-            marginBottom: 11,
-          }}
-        >
+
+        {/* Stage-level assignment row */}
+        {pickerMembers.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 14,
+              padding: "10px 12px",
+              background: "#fff",
+              borderRadius: 8,
+              border: "1px solid rgba(11,27,43,0.07)",
+            }}
+          >
+            <span style={{ flex: 1, fontWeight: 500, fontSize: 12.5, color: "rgba(11,27,43,0.55)" }}>
+              Stage assigned to
+            </span>
+            <button
+              type="button"
+              onClick={() => setStagePickerOpen(true)}
+              title="Change stage assignee"
+              style={{
+                background: "transparent",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+              }}
+            >
+              <Avatar
+                initials={stageAssignee}
+                size={24}
+                color={avatarColorFromProfiles(stageAssignee, profiles)}
+              />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#0B1B2B" }}>
+                {profiles.find((p) => p.initials === stageAssignee)?.name ?? stageAssignee}
+              </span>
+              <span style={{ fontSize: 11, color: "rgba(11,27,43,0.35)" }}>›</span>
+            </button>
+          </div>
+        )}
+
+        <div style={{ fontWeight: 600, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.16em", color: "#2E6B5E", marginBottom: 11 }}>
           Current stage tasks
         </div>
+
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {tasks.map((task) => (
             <div
               key={task.id}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "13px 14px",
+                padding: "11px 14px 12px",
                 background: "#fff",
                 borderRadius: 8,
                 border: "1px solid rgba(11,27,43,0.07)",
                 opacity: task.done ? 0.65 : 1,
               }}
             >
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => onToggle(task)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onToggle(task); }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  flex: 1,
-                  cursor: "pointer",
-                }}
-              >
+              {/* Task row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {/* Checkbox + name */}
                 <div
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: 5,
-                    border: `2px solid ${task.done ? "#2E6B5E" : "rgba(11,27,43,0.2)"}`,
-                    background: task.done ? "#2E6B5E" : "transparent",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    transition: "all 0.15s",
-                  }}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onToggle(task)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onToggle(task); }}
+                  style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, cursor: "pointer" }}
                 >
-                  {task.done && (
-                    <svg width="12" height="9" viewBox="0 0 12 9">
-                      <path
-                        d="M1 4l3.5 3.5L11 1"
-                        stroke="#fff"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        fill="none"
-                      />
-                    </svg>
-                  )}
+                  <div
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 5,
+                      border: `2px solid ${task.done ? "#2E6B5E" : "rgba(11,27,43,0.2)"}`,
+                      background: task.done ? "#2E6B5E" : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {task.done && (
+                      <svg width="12" height="9" viewBox="0 0 12 9">
+                        <path d="M1 4l3.5 3.5L11 1" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </svg>
+                    )}
+                  </div>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontWeight: 400,
+                      fontSize: 14,
+                      lineHeight: 1.4,
+                      color: "#0B1B2B",
+                      textDecoration: task.done ? "line-through" : "none",
+                    }}
+                  >
+                    {task.name}
+                  </span>
                 </div>
-                <span
-                  style={{
-                    flex: 1,
-                    fontWeight: 400,
-                    fontSize: 14,
-                    lineHeight: 1.4,
-                    color: "#0B1B2B",
-                    textDecoration: task.done ? "line-through" : "none",
-                  }}
+
+                {/* Task-level assignee avatar */}
+                <button
+                  type="button"
+                  aria-label={`Reassign task (currently ${task.assignee})`}
+                  onClick={() => setPickerTaskId(task.id)}
+                  style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer" }}
                 >
-                  {task.name}
-                </span>
+                  <Avatar
+                    initials={task.assignee}
+                    size={24}
+                    color={avatarColorFromProfiles(task.assignee, profiles)}
+                  />
+                </button>
               </div>
-              <button
-                type="button"
-                aria-label={`Reassign task to a teammate (currently ${task.assignee})`}
-                onClick={() => setPickerTaskId(task.id)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-              >
-                <Avatar initials={task.assignee} size={24} />
-              </button>
+
+              {/* Notes */}
+              <TaskNotes
+                turnId={turn.id}
+                stageIdx={turn.stage_idx}
+                taskName={task.name}
+                initialNotes={notesByTask.get(task.name) ?? []}
+              />
             </div>
           ))}
         </div>
 
         {allDone && !isLast && (
-          <div
-            style={{
-              background: "rgba(46,107,94,0.1)",
-              border: "1px solid rgba(46,107,94,0.25)",
-              borderRadius: 8,
-              padding: "12px 14px",
-              marginTop: 16,
-              fontWeight: 400,
-              fontSize: 13.5,
-              lineHeight: 1.5,
-              color: "#2A5C46",
-            }}
-          >
+          <div style={{ background: "rgba(46,107,94,0.1)", border: "1px solid rgba(46,107,94,0.25)", borderRadius: 8, padding: "12px 14px", marginTop: 16, fontWeight: 400, fontSize: 13.5, lineHeight: 1.5, color: "#2A5C46" }}>
             All done. Tap below to advance to <strong>{STAGES[turn.stage_idx + 1].name}</strong>.
           </div>
         )}
         {isLast && allDone && (
-          <div
-            style={{
-              background: "rgba(61,122,95,0.12)",
-              border: "1px solid rgba(61,122,95,0.25)",
-              borderRadius: 8,
-              padding: "12px 14px",
-              marginTop: 16,
-              fontWeight: 600,
-              fontSize: 13.5,
-              color: "#3D7A5F",
-            }}
-          >
+          <div style={{ background: "rgba(61,122,95,0.12)", border: "1px solid rgba(61,122,95,0.25)", borderRadius: 8, padding: "12px 14px", marginTop: 16, fontWeight: 600, fontSize: 13.5, color: "#3D7A5F" }}>
             ✓ This unit is Ready.
           </div>
         )}
       </div>
 
+      {/* Advance button */}
       {!isLast && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: "12px 16px 28px",
-            background: "#F5F1E8",
-            borderTop: "1px solid rgba(11,27,43,0.08)",
-          }}
-        >
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "12px 16px 28px", background: "#F5F1E8", borderTop: "1px solid rgba(11,27,43,0.08)" }}>
           <button
             type="button"
             onClick={onAdvance}
@@ -318,27 +337,39 @@ export function Detail({ turn }: { turn: TurnWithTasks }) {
         </div>
       )}
 
+      {/* Per-task assignee picker */}
       {pickerTaskId && (
-        <AssigneeBottomSheet
+        <AssigneeSheet
           members={pickerMembers}
           teamLabel={stageTeam === "office" ? "Office team" : "Maintenance team"}
           current={tasks.find((t) => t.id === pickerTaskId)?.assignee}
-          onPick={(initials) => onPickAssignee(pickerTaskId, initials)}
+          onPick={(initials) => onPickTaskAssignee(pickerTaskId, initials)}
           onClose={() => setPickerTaskId(null)}
+        />
+      )}
+
+      {/* Stage assignee picker */}
+      {stagePickerOpen && (
+        <AssigneeSheet
+          members={pickerMembers}
+          teamLabel={`Assign all ${stageTeam} tasks`}
+          current={stageAssignee}
+          onPick={onPickStageAssignee}
+          onClose={() => setStagePickerOpen(false)}
         />
       )}
     </div>
   );
 }
 
-function AssigneeBottomSheet({
+function AssigneeSheet({
   members,
   teamLabel,
   current,
   onPick,
   onClose,
 }: {
-  members: TeamMember[];
+  members: ProfileMember[];
   teamLabel: string;
   current?: string;
   onPick: (initials: string) => void;
@@ -349,92 +380,60 @@ function AssigneeBottomSheet({
       role="dialog"
       aria-modal="true"
       onClick={onClose}
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "rgba(11,27,43,0.4)",
-        zIndex: 10,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-end",
-      }}
+      style={{ position: "absolute", inset: 0, background: "rgba(11,27,43,0.4)", zIndex: 10, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          background: "#F5F1E8",
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
-          padding: "20px 16px 28px",
-          boxShadow: "0 -8px 24px rgba(11,27,43,0.18)",
-        }}
+        style={{ background: "#F5F1E8", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: "20px 16px 28px", boxShadow: "0 -8px 24px rgba(11,27,43,0.18)" }}
       >
-        <div
-          style={{
-            fontWeight: 600,
-            fontSize: 10.5,
-            textTransform: "uppercase",
-            letterSpacing: "0.16em",
-            color: "#2E6B5E",
-            marginBottom: 11,
-          }}
-        >
-          Reassign to · {teamLabel}
+        <div style={{ fontWeight: 600, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.16em", color: "#2E6B5E", marginBottom: 11 }}>
+          {teamLabel}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {members.map((m) => {
-            const selected = current === m.initials;
-            return (
-              <button
-                key={m.initials}
-                type="button"
-                onClick={() => onPick(m.initials)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "10px 12px",
-                  background: "#fff",
-                  border: `1px solid ${selected ? avatarColor(m.initials) : "rgba(11,27,43,0.07)"}`,
-                  borderLeft: `4px solid ${selected ? avatarColor(m.initials) : "transparent"}`,
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  textAlign: "left",
-                }}
-              >
-                <Avatar initials={m.initials} size={28} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: "#0B1B2B" }}>{m.name}</div>
-                  <div
-                    style={{
-                      fontWeight: 400,
-                      fontSize: 12,
-                      color: "rgba(11,27,43,0.55)",
-                      textTransform: "capitalize",
-                    }}
-                  >
-                    {m.role.replace("_", " ")}
+
+        {members.length === 0 ? (
+          <p style={{ fontSize: 13.5, color: "rgba(11,27,43,0.5)", margin: "0 0 12px" }}>
+            No team members found. Ask your admin to set roles in Supabase.
+          </p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {members.map((m) => {
+              const selected = current === m.initials;
+              return (
+                <button
+                  key={m.initials}
+                  type="button"
+                  onClick={() => onPick(m.initials)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 12px",
+                    background: "#fff",
+                    border: `1px solid ${selected ? m.avatar_color : "rgba(11,27,43,0.07)"}`,
+                    borderLeft: `4px solid ${selected ? m.avatar_color : "transparent"}`,
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <Avatar initials={m.initials} size={28} color={m.avatar_color} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: "#0B1B2B" }}>{m.name}</div>
+                    <div style={{ fontWeight: 400, fontSize: 12, color: "rgba(11,27,43,0.55)", textTransform: "capitalize" }}>
+                      {m.role.replace("_", " ")}
+                    </div>
                   </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                  {selected && <span style={{ color: m.avatar_color, fontSize: 16 }}>✓</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={onClose}
-          style={{
-            marginTop: 14,
-            width: "100%",
-            padding: "12px",
-            background: "transparent",
-            border: "1px solid rgba(11,27,43,0.15)",
-            borderRadius: 8,
-            cursor: "pointer",
-            fontWeight: 500,
-            fontSize: 14,
-            color: "rgba(11,27,43,0.6)",
-          }}
+          style={{ marginTop: 14, width: "100%", padding: "12px", background: "transparent", border: "1px solid rgba(11,27,43,0.15)", borderRadius: 8, cursor: "pointer", fontWeight: 500, fontSize: 14, color: "rgba(11,27,43,0.6)" }}
         >
           Cancel
         </button>

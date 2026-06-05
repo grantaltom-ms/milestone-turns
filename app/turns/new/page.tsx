@@ -1,11 +1,26 @@
+import { redirect } from "next/navigation";
 import { NewTurnForm } from "@/components/new-turn/NewTurnForm";
-import { getCurrentInitials } from "@/lib/current-user";
-import { loadProperties } from "@/lib/data";
+import { getCurrentProfile } from "@/lib/current-user";
+import { loadProfiles, loadProperties } from "@/lib/data";
+import { membersOnTeam } from "@/lib/stages";
 
 export default async function NewTurnPage() {
-  const [properties, defaultAssignee] = await Promise.all([
+  const [properties, profiles, currentUser] = await Promise.all([
     loadProperties(),
-    getCurrentInitials(),
+    loadProfiles(),
+    getCurrentProfile(),
   ]);
-  return <NewTurnForm properties={properties} defaultAssignee={defaultAssignee} />;
+
+  if (!currentUser) redirect("/login");
+
+  // New turns start at Inspection (stage 0 = office team)
+  const officeMembers = membersOnTeam("office", profiles);
+
+  return (
+    <NewTurnForm
+      properties={properties}
+      defaultAssignee={currentUser.initials}
+      officeMembers={officeMembers}
+    />
+  );
 }

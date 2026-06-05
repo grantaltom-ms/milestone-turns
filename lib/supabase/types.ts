@@ -25,3 +25,24 @@ export type TurnWithTasks = Turn & { tasks: Task[] };
 export type PropertyRow = { id: number; name: string };
 
 export type AppUser = { user_id: string; initials: string; name: string };
+
+export type Profile = {
+  id: string;
+  name: string;
+  email: string;
+  role: "office_lead" | "office" | "maintenance_lead" | "maintenance";
+  initials: string;
+  avatar_color: string;
+  created_at: string;
+};
+
+export type TaskNote = {
+  id: string;
+  turn_id: string;
+  stage_idx: number;
+  task_name: string;
+  author_id: string;
+  author_name: string;
+  content: string;
+  created_at: string;
+};

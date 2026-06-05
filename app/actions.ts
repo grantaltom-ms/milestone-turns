@@ -29,11 +29,25 @@ export async function setTaskAssigneeAction(taskId: string, assignee: string) {
   if (data?.turn_id) revalidatePath(`/turns/${data.turn_id}`);
   revalidatePath("/");
 
-  // Slack hook — currently a no-op until Phase 2 lands SLACK_BOT_TOKEN setup.
   if (data) {
     const { notifyTaskAssigned } = await import("@/lib/slack");
     await notifyTaskAssigned({ taskId: data.id, taskName: data.name, turnId: data.turn_id, assignee: data.assignee });
   }
+}
+
+/** Assign a whole stage to one person — updates turn.assignee and all its tasks. */
+export async function setStageAssigneeAction(turnId: string, assignee: string) {
+  const supabase = await getServerSupabase();
+
+  const [turnRes, tasksRes] = await Promise.all([
+    supabase.from("turns").update({ assignee }).eq("id", turnId),
+    supabase.from("turn_tasks").update({ assignee }).eq("turn_id", turnId),
+  ]);
+  if (turnRes.error) throw turnRes.error;
+  if (tasksRes.error) throw tasksRes.error;
+
+  revalidatePath(`/turns/${turnId}`);
+  revalidatePath("/");
 }
 
 export async function advanceTurnAction(turnId: string) {
@@ -92,4 +106,61 @@ export async function bulkCreateTurnsAction(
   }
   revalidatePath("/");
   return { created, failed };
+}
+
+/** Add a note to a task. author_id comes from the current session. */
+export async function addTaskNoteAction(input: {
+  turn_id: string;
+  stage_idx: number;
+  task_name: string;
+  content: string;
+}): Promise<void> {
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { error } = await supabase.from("task_notes").insert({
+    turn_id: input.turn_id,
+    stage_idx: input.stage_idx,
+    task_name: input.task_name,
+    author_id: user.id,
+    content: input.content.trim(),
+  });
+  if (error) throw error;
+
+  revalidatePath(`/turns/${input.turn_id}`);
+}
+
+/** Upsert a user's own profile (called from onboarding). */
+export async function upsertProfileAction(input: {
+  name: string;
+}): Promise<void> {
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Compute initials: first char of first + last word of name
+  const parts = input.name.trim().split(/\s+/);
+  const initials = parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : parts[0].slice(0, 2).toUpperCase();
+
+  const { error } = await supabase.from("profiles").upsert({
+    id: user.id,
+    name: input.name.trim(),
+    email: user.email ?? "",
+    initials,
+    // role + avatar_color keep their DB defaults on first insert;
+    // admin can update directly in Supabase
+  }, { onConflict: "id" });
+  if (error) throw error;
+
+  revalidatePath("/");
+}
+
+/** Sign the current user out. */
+export async function signOutAction(): Promise<void> {
+  const supabase = await getServerSupabase();
+  await supabase.auth.signOut();
+  redirect("/login");
 }
