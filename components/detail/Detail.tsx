@@ -8,6 +8,7 @@ import {
   advanceTurnAction,
   deleteTaskAction,
   deleteTurnAction,
+  handoffToMaintenanceAction,
   setStageAssigneeAction,
   setTaskAssigneeAction,
   toggleTaskAction,
@@ -51,6 +52,7 @@ export function Detail({
     | null
   >(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [handoffOpen, setHandoffOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => { setTasks(turn.tasks); }, [turn.tasks]);
@@ -108,6 +110,11 @@ export function Detail({
   const currentTasks = tasksByStage.get(turn.stage_idx) ?? [];
   const openCurrent = currentTasks.filter((t) => !t.done).length;
   const allCurrentDone = openCurrent === 0 && currentTasks.length > 0;
+  const isHandoffPoint =
+    allCurrentDone &&
+    !isLast &&
+    STAGE_TEAM[turn.stage_idx] === "office" &&
+    STAGE_TEAM[turn.stage_idx + 1] === "maintenance";
 
   const pickerStageIdx =
     picker?.kind === "stage"
@@ -315,7 +322,15 @@ export function Detail({
           />
         ))}
 
-        {allCurrentDone && !isLast && (
+        {isHandoffPoint && (
+          <div style={{ background: "rgba(26,46,68,0.07)", border: "1px solid rgba(26,46,68,0.18)", borderRadius: 8, padding: "12px 14px", marginTop: 16, lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "#1A2E44", marginBottom: 2 }}>Office work complete</div>
+            <div style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.6)" }}>
+              Tap below to assign a maintenance team member and hand off to <strong>{STAGES[turn.stage_idx + 1].name}</strong>.
+            </div>
+          </div>
+        )}
+        {allCurrentDone && !isLast && !isHandoffPoint && (
           <div style={{ background: "rgba(46,107,94,0.1)", border: "1px solid rgba(46,107,94,0.25)", borderRadius: 8, padding: "12px 14px", marginTop: 16, fontWeight: 400, fontSize: 13.5, lineHeight: 1.5, color: "#2A5C46" }}>
             All done. Tap below to advance to <strong>{STAGES[turn.stage_idx + 1].name}</strong>.
           </div>
@@ -327,31 +342,64 @@ export function Detail({
         )}
       </div>
 
-      {/* Advance button */}
+      {/* Advance / Handoff button */}
       {!isLast && (
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "12px 16px 28px", background: "#F5F1E8", borderTop: "1px solid rgba(11,27,43,0.08)" }}>
-          <button
-            type="button"
-            onClick={onAdvance}
-            disabled={!allCurrentDone}
-            style={{
-              width: "100%",
-              padding: 15,
-              borderRadius: 8,
-              border: "none",
-              cursor: allCurrentDone ? "pointer" : "not-allowed",
-              background: allCurrentDone ? "#2E6B5E" : "#E8E4DC",
-              color: allCurrentDone ? "#fff" : "rgba(11,27,43,0.28)",
-              fontWeight: 600,
-              fontSize: 15,
-              transition: "background 0.2s",
-            }}
-          >
-            {allCurrentDone
-              ? `Advance to ${STAGES[turn.stage_idx + 1].name} →`
-              : `${openCurrent} task${openCurrent !== 1 ? "s" : ""} left before advancing`}
-          </button>
+          {isHandoffPoint ? (
+            <button
+              type="button"
+              onClick={() => setHandoffOpen(true)}
+              style={{
+                width: "100%",
+                padding: 15,
+                borderRadius: 8,
+                border: "none",
+                cursor: "pointer",
+                background: "#1A2E44",
+                color: "#F5F1E8",
+                fontWeight: 600,
+                fontSize: 15,
+              }}
+            >
+              Hand off to Maintenance →
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onAdvance}
+              disabled={!allCurrentDone}
+              style={{
+                width: "100%",
+                padding: 15,
+                borderRadius: 8,
+                border: "none",
+                cursor: allCurrentDone ? "pointer" : "not-allowed",
+                background: allCurrentDone ? "#2E6B5E" : "#E8E4DC",
+                color: allCurrentDone ? "#fff" : "rgba(11,27,43,0.28)",
+                fontWeight: 600,
+                fontSize: 15,
+                transition: "background 0.2s",
+              }}
+            >
+              {allCurrentDone
+                ? `Advance to ${STAGES[turn.stage_idx + 1].name} →`
+                : `${openCurrent} task${openCurrent !== 1 ? "s" : ""} left before advancing`}
+            </button>
+          )}
         </div>
+      )}
+
+      {/* Handoff sheet */}
+      {handoffOpen && (
+        <HandoffSheet
+          turn={turn}
+          profiles={profiles}
+          onConfirm={(assignee) => {
+            setHandoffOpen(false);
+            startTransition(() => { void handoffToMaintenanceAction(turn.id, assignee); });
+          }}
+          onClose={() => setHandoffOpen(false)}
+        />
       )}
 
       {/* Edit sheet */}
@@ -765,6 +813,124 @@ function TaskRow({
           {notes.length} note{notes.length !== 1 ? "s" : ""}
         </div>
       )}
+    </div>
+  );
+}
+
+function HandoffSheet({
+  turn,
+  profiles,
+  onConfirm,
+  onClose,
+}: {
+  turn: TurnWithTasks;
+  profiles: ProfileMember[];
+  onConfirm: (assignee: string) => void;
+  onClose: () => void;
+}) {
+  const maintenanceMembers = useMemo(
+    () => profiles.filter((p) => p.role === "maintenance_lead" || p.role === "maintenance"),
+    [profiles],
+  );
+  const [selected, setSelected] = useState<string | null>(null);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      style={{ position: "absolute", inset: 0, background: "rgba(11,27,43,0.5)", zIndex: 10, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ background: "#F5F1E8", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: "20px 16px 32px", boxShadow: "0 -8px 24px rgba(11,27,43,0.2)" }}
+      >
+        {/* Header */}
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontWeight: 700, fontSize: 17, color: "#1A2E44" }}>Hand off to Maintenance</div>
+          <div style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.55)", marginTop: 3 }}>
+            {turn.property_name} · Unit {turn.unit} — Office work is complete.
+            Pick who takes it from here.
+          </div>
+        </div>
+
+        <div style={{ height: 1, background: "rgba(11,27,43,0.08)", margin: "14px 0" }} />
+
+        <div style={{ fontWeight: 600, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(11,27,43,0.45)", marginBottom: 10 }}>
+          Maintenance team
+        </div>
+
+        {maintenanceMembers.length === 0 ? (
+          <p style={{ fontSize: 13.5, color: "rgba(11,27,43,0.5)", margin: "0 0 12px" }}>
+            No maintenance members found. Ask your admin to set roles in Supabase.
+          </p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
+            {maintenanceMembers.map((m) => {
+              const active = selected === m.initials;
+              return (
+                <button
+                  key={m.initials}
+                  type="button"
+                  onClick={() => setSelected(m.initials)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "11px 14px",
+                    background: active ? "rgba(26,46,68,0.06)" : "#fff",
+                    border: `1.5px solid ${active ? "#1A2E44" : "rgba(11,27,43,0.08)"}`,
+                    borderRadius: 10,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <Avatar initials={m.initials} size={30} color={m.avatar_color} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: "#0B1B2B" }}>{m.name}</div>
+                    <div style={{ fontWeight: 400, fontSize: 12, color: "rgba(11,27,43,0.5)", textTransform: "capitalize" }}>
+                      {m.role.replace("_", " ")}
+                    </div>
+                  </div>
+                  {active && (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="7" fill="#1A2E44" />
+                      <path d="M4.5 8l2.5 2.5 4.5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => selected && onConfirm(selected)}
+          disabled={!selected}
+          style={{
+            width: "100%",
+            padding: 14,
+            borderRadius: 8,
+            border: "none",
+            background: selected ? "#1A2E44" : "rgba(11,27,43,0.1)",
+            color: selected ? "#F5F1E8" : "rgba(11,27,43,0.3)",
+            fontWeight: 600,
+            fontSize: 15,
+            cursor: selected ? "pointer" : "not-allowed",
+          }}
+        >
+          {selected ? `Hand off to ${profiles.find((p) => p.initials === selected)?.name ?? selected} →` : "Select a team member"}
+        </button>
+
+        <button
+          type="button"
+          onClick={onClose}
+          style={{ marginTop: 8, width: "100%", padding: 12, background: "transparent", border: "1px solid rgba(11,27,43,0.15)", borderRadius: 8, cursor: "pointer", fontWeight: 500, fontSize: 14, color: "rgba(11,27,43,0.6)" }}
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

@@ -72,6 +72,21 @@ export async function advanceTurnAction(turnId: string) {
   revalidatePath("/");
 }
 
+/** Advance the turn across the office→maintenance boundary and assign the incoming stage. */
+export async function handoffToMaintenanceAction(turnId: string, assignee: string) {
+  const supabase = await getServerSupabase();
+  const { error: advErr } = await supabase.rpc("advance_turn", { p_turn_id: turnId });
+  if (advErr) throw advErr;
+  const [turnRes, taskRes] = await Promise.all([
+    supabase.from("turns").update({ assignee }).eq("id", turnId),
+    supabase.from("turn_tasks").update({ assignee }).eq("turn_id", turnId).eq("stage_idx", 2),
+  ]);
+  if (turnRes.error) throw turnRes.error;
+  if (taskRes.error) throw taskRes.error;
+  revalidatePath(`/turns/${turnId}`);
+  revalidatePath("/");
+}
+
 export async function createTurnAction(input: {
   property_id: number;
   unit: string;
