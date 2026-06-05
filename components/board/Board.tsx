@@ -10,8 +10,8 @@ import type { TurnMeta } from "@/lib/turn-meta";
 import { UserHeader } from "@/components/UserHeader";
 import { TurnCard } from "./TurnCard";
 
-type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "Overdue";
-const FILTERS: Filter[] = ["All", "Mine", "Office", "Maintenance", "Ready", "Overdue"];
+type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine";
+const FILTERS: Filter[] = ["All", "Mine", "Office", "Maintenance", "Ready"];
 
 export function Board({
   turns,
@@ -46,7 +46,6 @@ export function Board({
     return turns.filter((t) => {
       if (filter === "All") return true;
       if (filter === "Mine") return mineSet.has(t.id);
-      if (filter === "Overdue") return meta[t.id]?.isOverdue ?? false;
       const cat = STAGE_FILTER_CATEGORY[t.stage_idx];
       if (filter === "Office") return cat === "office";
       if (filter === "Maintenance") return cat === "maintenance";
