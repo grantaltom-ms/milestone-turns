@@ -254,3 +254,33 @@ export async function deleteTaskAction(taskId: string) {
   if (data?.turn_id) revalidatePath(`/turns/${data.turn_id}`);
   revalidatePath("/");
 }
+
+export async function putTurnOnHoldAction(
+  turnId: string,
+  holdStatus: "on_hold" | "blocked",
+  holdReason: string,
+) {
+  const supabase = await getServerSupabase();
+  const { error } = await supabase
+    .from("turns")
+    .update({
+      hold_status: holdStatus,
+      hold_reason: holdReason.trim(),
+      held_at: new Date().toISOString(),
+    })
+    .eq("id", turnId);
+  if (error) throw error;
+  revalidatePath(`/turns/${turnId}`);
+  revalidatePath("/");
+}
+
+export async function resumeTurnAction(turnId: string) {
+  const supabase = await getServerSupabase();
+  const { error } = await supabase
+    .from("turns")
+    .update({ hold_status: null, hold_reason: null, held_at: null })
+    .eq("id", turnId);
+  if (error) throw error;
+  revalidatePath(`/turns/${turnId}`);
+  revalidatePath("/");
+}

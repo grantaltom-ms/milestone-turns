@@ -1,3 +1,5 @@
+export type HoldStatus = "on_hold" | "blocked";
+
 export type Turn = {
   id: string;
   property_id: number;
@@ -10,6 +12,9 @@ export type Turn = {
   stage_entered_at: string;
   created_at: string;
   updated_at: string;
+  hold_status: HoldStatus | null;
+  hold_reason: string | null;
+  held_at: string | null;
 };
 
 export type Task = {
