@@ -55,3 +55,25 @@ export type TaskNote = {
   content: string;
   created_at: string;
 };
+
+export type TurnEventType =
+  | "created"
+  | "advanced"
+  | "handed_off"
+  | "held"
+  | "resumed"
+  | "assigned"
+  | "task_assigned"
+  | "edited"
+  | "task_completed"
+  | "task_reopened"
+  | "note_added";
+
+export type TurnEvent = {
+  id: string;
+  turn_id: string;
+  event_type: TurnEventType;
+  actor: string;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+};

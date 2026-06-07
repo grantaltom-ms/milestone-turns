@@ -3,6 +3,20 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerSupabase } from "@/lib/supabase/server";
+import { getCurrentInitials } from "@/lib/current-user";
+import { logEvent } from "@/lib/events";
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+async function actor(): Promise<string> {
+  try {
+    return await getCurrentInitials();
+  } catch {
+    return "??";
+  }
+}
+
+// ─── task actions ─────────────────────────────────────────────────────────────
 
 export async function toggleTaskAction(taskId: string, done: boolean) {
   const supabase = await getServerSupabase();
@@ -24,10 +38,18 @@ export async function toggleTaskAction(taskId: string, done: boolean) {
     .from("turn_tasks")
     .update(patch)
     .eq("id", taskId)
-    .select("turn_id")
+    .select("turn_id, name, stage_idx")
     .maybeSingle();
   if (error) throw error;
-  if (data?.turn_id) revalidatePath(`/turns/${data.turn_id}`);
+  if (data?.turn_id) {
+    revalidatePath(`/turns/${data.turn_id}`);
+    const me = actorInitials ?? await actor();
+    const eventType = done ? "task_completed" : "task_reopened";
+    await logEvent(data.turn_id, eventType, me, {
+      task_name: data.name,
+      stage: data.stage_idx,
+    });
+  }
   revalidatePath("/");
 }
 
@@ -40,7 +62,14 @@ export async function setTaskAssigneeAction(taskId: string, assignee: string) {
     .select("id, turn_id, name, assignee")
     .maybeSingle();
   if (error) throw error;
-  if (data?.turn_id) revalidatePath(`/turns/${data.turn_id}`);
+  if (data?.turn_id) {
+    revalidatePath(`/turns/${data.turn_id}`);
+    const me = await actor();
+    await logEvent(data.turn_id, "task_assigned", me, {
+      task_name: data.name,
+      assignee: data.assignee,
+    });
+  }
   revalidatePath("/");
 
   if (data) {
@@ -60,14 +89,32 @@ export async function setStageAssigneeAction(turnId: string, assignee: string) {
   if (turnRes.error) throw turnRes.error;
   if (tasksRes.error) throw tasksRes.error;
 
+  const me = await actor();
+  await logEvent(turnId, "assigned", me, { assignee });
+
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
 }
 
 export async function advanceTurnAction(turnId: string) {
   const supabase = await getServerSupabase();
+  // Capture the current stage BEFORE advancing so we can log from→to
+  const { data: before } = await supabase
+    .from("turns")
+    .select("stage_idx")
+    .eq("id", turnId)
+    .maybeSingle();
+  const fromStage = (before as { stage_idx: number } | null)?.stage_idx ?? 0;
+
   const { error } = await supabase.rpc("advance_turn", { p_turn_id: turnId });
   if (error) throw error;
+
+  const me = await actor();
+  await logEvent(turnId, "advanced", me, {
+    from_stage: fromStage,
+    to_stage: fromStage + 1,
+  });
+
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
 }
@@ -75,14 +122,30 @@ export async function advanceTurnAction(turnId: string) {
 /** Advance the turn across the office→maintenance boundary and assign the incoming stage. */
 export async function handoffToMaintenanceAction(turnId: string, assignee: string) {
   const supabase = await getServerSupabase();
+  // Capture current stage before advancing
+  const { data: before } = await supabase
+    .from("turns")
+    .select("stage_idx")
+    .eq("id", turnId)
+    .maybeSingle();
+  const fromStage = (before as { stage_idx: number } | null)?.stage_idx ?? 1;
+
   const { error: advErr } = await supabase.rpc("advance_turn", { p_turn_id: turnId });
   if (advErr) throw advErr;
   const [turnRes, taskRes] = await Promise.all([
     supabase.from("turns").update({ assignee }).eq("id", turnId),
-    supabase.from("turn_tasks").update({ assignee }).eq("turn_id", turnId).eq("stage_idx", 2),
+    supabase.from("turn_tasks").update({ assignee }).eq("turn_id", turnId).eq("stage_idx", fromStage + 1),
   ]);
   if (turnRes.error) throw turnRes.error;
   if (taskRes.error) throw taskRes.error;
+
+  const me = await actor();
+  await logEvent(turnId, "handed_off", me, {
+    from_stage: fromStage,
+    to_stage: fromStage + 1,
+    assigned_to: assignee,
+  });
+
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
 }
@@ -95,7 +158,8 @@ export async function createTurnAction(input: {
   assignee: string;
 }) {
   const supabase = await getServerSupabase();
-  const { error } = await supabase.rpc("create_turn", {
+  // create_turn RPC returns the new turn id
+  const { data: newTurnId, error } = await supabase.rpc("create_turn", {
     p_property_id: input.property_id,
     p_unit: input.unit,
     p_vacate_date: input.vacate_date,
@@ -103,6 +167,12 @@ export async function createTurnAction(input: {
     p_assignee: input.assignee,
   });
   if (error) throw error;
+
+  if (newTurnId) {
+    const me = await actor();
+    await logEvent(newTurnId as string, "created", me);
+  }
+
   revalidatePath("/");
   redirect("/");
 }
@@ -119,19 +189,24 @@ export async function bulkCreateTurnsAction(
   rows: BulkRow[],
 ): Promise<{ created: number; failed: { rowNumber: number; message: string }[] }> {
   const supabase = await getServerSupabase();
+  const me = await actor();
   const failed: { rowNumber: number; message: string }[] = [];
   let created = 0;
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    const { error } = await supabase.rpc("create_turn", {
+    const { data: newTurnId, error } = await supabase.rpc("create_turn", {
       p_property_id: r.property_id,
       p_unit: r.unit,
       p_vacate_date: r.vacate_date,
       p_target_date: r.target_date,
       p_assignee: r.assignee,
     });
-    if (error) failed.push({ rowNumber: i + 1, message: error.message });
-    else created += 1;
+    if (error) {
+      failed.push({ rowNumber: i + 1, message: error.message });
+    } else {
+      created += 1;
+      if (newTurnId) await logEvent(newTurnId as string, "created", me);
+    }
   }
   revalidatePath("/");
   return { created, failed };
@@ -156,6 +231,9 @@ export async function addTaskNoteAction(input: {
     content: input.content.trim(),
   });
   if (error) throw error;
+
+  const me = await actor();
+  await logEvent(input.turn_id, "note_added", me, { task_name: input.task_name });
 
   revalidatePath(`/turns/${input.turn_id}`);
 }
@@ -202,6 +280,11 @@ export async function updateTurnAction(turnId: string, patch: {
   const supabase = await getServerSupabase();
   const { error } = await supabase.from("turns").update(patch).eq("id", turnId);
   if (error) throw error;
+
+  const me = await actor();
+  const fieldsChanged = Object.keys(patch).filter((k) => patch[k as keyof typeof patch] !== undefined);
+  await logEvent(turnId, "edited", me, { fields_changed: fieldsChanged });
+
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
 }
@@ -270,6 +353,10 @@ export async function putTurnOnHoldAction(
     })
     .eq("id", turnId);
   if (error) throw error;
+
+  const me = await actor();
+  await logEvent(turnId, "held", me, { hold_status: holdStatus, reason: holdReason.trim() });
+
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
 }
@@ -281,6 +368,10 @@ export async function resumeTurnAction(turnId: string) {
     .update({ hold_status: null, hold_reason: null, held_at: null })
     .eq("id", turnId);
   if (error) throw error;
+
+  const me = await actor();
+  await logEvent(turnId, "resumed", me);
+
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
 }
