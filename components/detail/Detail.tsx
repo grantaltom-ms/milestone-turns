@@ -14,6 +14,7 @@ import {
   setStageAssigneeAction,
   setTaskAssigneeAction,
   toggleTaskAction,
+  revertTurnAction,
   updateTurnAction,
 } from "@/app/actions";
 import { Avatar } from "@/components/Avatar";
@@ -22,6 +23,7 @@ import { StageTag } from "@/components/StageTag";
 import { TaskNotes } from "@/components/TaskNotes";
 import { UserHeader } from "@/components/UserHeader";
 import { HoldSheet } from "@/components/detail/HoldSheet";
+import { RevertSheet } from "@/components/detail/RevertSheet";
 import { ActivityLog } from "@/components/detail/ActivityLog";
 import {
   avatarColorFromProfiles,
@@ -60,7 +62,10 @@ export function Detail({
   const [editOpen, setEditOpen] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
+  const [revertOpen, setRevertOpen] = useState(false);
   const [, startTransition] = useTransition();
+
+  const isLead = currentUser.role === "office_lead" || currentUser.role === "maintenance_lead";
 
   const isHeld = turn.hold_status != null;
   const isBlocked = turn.hold_status === "blocked";
@@ -235,6 +240,32 @@ export function Detail({
               >
                 {isHeld ? (isBlocked ? "🚫" : "⏸") : "⏸"}
                 {isHeld ? holdLabel : "Hold"}
+              </button>
+            )}
+            {/* Send-back button — leads only, hidden at stage 0 and last stage */}
+            {isLead && turn.stage_idx > 0 && !isLast && (
+              <button
+                type="button"
+                onClick={() => setRevertOpen(true)}
+                aria-label="Send back a stage"
+                title="Send back to previous stage"
+                style={{
+                  padding: "5px 10px",
+                  borderRadius: 999,
+                  border: "1.5px solid rgba(200,146,42,0.45)",
+                  background: "transparent",
+                  color: "rgba(200,146,42,0.85)",
+                  fontFamily: "var(--font-sans)",
+                  fontWeight: 600,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                ↩ Back
               </button>
             )}
             <button
@@ -480,6 +511,20 @@ export function Detail({
             startTransition(() => { void putTurnOnHoldAction(turn.id, status, reason); });
           }}
           onClose={() => setHoldOpen(false)}
+        />
+      )}
+
+      {/* Revert sheet */}
+      {revertOpen && (
+        <RevertSheet
+          propertyName={turn.property_name ?? "Property"}
+          unit={turn.unit}
+          currentStageIdx={turn.stage_idx}
+          onConfirm={(reason) => {
+            setRevertOpen(false);
+            startTransition(() => { void revertTurnAction(turn.id, reason); });
+          }}
+          onClose={() => setRevertOpen(false)}
         />
       )}
 

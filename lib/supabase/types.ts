@@ -67,7 +67,8 @@ export type TurnEventType =
   | "edited"
   | "task_completed"
   | "task_reopened"
-  | "note_added";
+  | "note_added"
+  | "reverted";
 
 export type TurnEvent = {
   id: string;

@@ -375,3 +375,15 @@ export async function resumeTurnAction(turnId: string) {
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
 }
+
+export async function revertTurnAction(turnId: string, reason: string) {
+  const supabase = await getServerSupabase();
+  const { error } = await supabase.rpc("revert_turn", { p_turn_id: turnId, p_reason: reason });
+  if (error) throw error;
+
+  const me = await actor();
+  await logEvent(turnId, "reverted", me, { reason });
+
+  revalidatePath(`/turns/${turnId}`);
+  revalidatePath("/");
+}
