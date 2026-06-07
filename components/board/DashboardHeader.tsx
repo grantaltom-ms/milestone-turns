@@ -1,0 +1,125 @@
+"use client";
+
+import type { DashboardStats } from "@/lib/supabase/types";
+
+type TileConfig = {
+  key: keyof DashboardStats;
+  label: string;
+  filterTarget?: "Overdue" | "On Hold";
+  activeColor: (val: number) => string;
+  isDecimal?: boolean;
+};
+
+const TILES: TileConfig[] = [
+  {
+    key: "inTurn",
+    label: "In Turn",
+    activeColor: () => "#F5F1E8",
+  },
+  {
+    key: "overdue",
+    label: "Overdue",
+    filterTarget: "Overdue",
+    activeColor: (v) => (v > 0 ? "#C84A2F" : "#F5F1E8"),
+  },
+  {
+    key: "onHold",
+    label: "On Hold",
+    filterTarget: "On Hold",
+    activeColor: (v) => (v > 0 ? "#C8922A" : "#F5F1E8"),
+  },
+  {
+    key: "ready",
+    label: "Ready",
+    activeColor: (v) => (v > 0 ? "#3D7A5F" : "#F5F1E8"),
+  },
+  {
+    key: "avgDays",
+    label: "Avg Days",
+    isDecimal: true,
+    activeColor: () => "#F5F1E8",
+  },
+];
+
+export function DashboardHeader({
+  stats,
+  onFilterChange,
+}: {
+  stats: DashboardStats;
+  onFilterChange: (f: "Overdue" | "On Hold") => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        padding: "14px 16px 10px",
+        overflowX: "auto",
+        scrollbarWidth: "none",
+        WebkitOverflowScrolling: "touch",
+        background: "#1A2E44",
+        flexShrink: 0,
+      }}
+    >
+      {TILES.map((tile) => {
+        const raw = stats[tile.key];
+        const val = typeof raw === "number" ? raw : 0;
+        const color = tile.activeColor(val);
+        const isColored = color !== "#F5F1E8";
+        const textColor = isColored ? "#fff" : "#0B1B2B";
+        const clickable = !!tile.filterTarget;
+        return (
+          <button
+            key={tile.key}
+            type="button"
+            onClick={clickable ? () => onFilterChange(tile.filterTarget!) : undefined}
+            style={{
+              flex: "1 0 0",
+              minWidth: 64,
+              maxWidth: 90,
+              background: color,
+              borderRadius: 10,
+              border: "none",
+              padding: "9px 8px 8px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 3,
+              cursor: clickable ? "pointer" : "default",
+              outline: "none",
+              transition: "opacity 0.12s",
+            }}
+            onMouseEnter={(e) => { if (clickable) e.currentTarget.style.opacity = "0.82"; }}
+            onMouseLeave={(e) => { if (clickable) e.currentTarget.style.opacity = "1"; }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--font-display)",
+                fontWeight: 700,
+                fontSize: 22,
+                lineHeight: 1,
+                color: textColor,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {tile.isDecimal ? val.toFixed(1) : val}
+            </span>
+            <span
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontWeight: 500,
+                fontSize: 10.5,
+                color: isColored ? "rgba(255,255,255,0.82)" : "rgba(11,27,43,0.52)",
+                letterSpacing: "0.02em",
+                textTransform: "uppercase",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {tile.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}

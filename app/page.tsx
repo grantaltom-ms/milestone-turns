@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Board } from "@/components/board/Board";
 import { getCurrentProfile } from "@/lib/current-user";
-import { loadMineSet, loadProfiles, loadTaskCounts, loadTurns } from "@/lib/data";
+import { computeDashboardStats, loadMineSet, loadProfiles, loadTaskCounts, loadTurns } from "@/lib/data";
 import { computeMetaMap } from "@/lib/turn-meta";
 
 export default async function HomePage() {
@@ -21,6 +21,8 @@ export default async function HomePage() {
   const openCounts: Record<string, number> = {};
   for (const t of turns) openCounts[t.id] = counts.get(t.id)?.open ?? 0;
 
+  const stats = computeDashboardStats(turns);
+
   return (
     <Board
       turns={turns}
@@ -29,6 +31,7 @@ export default async function HomePage() {
       profiles={profiles}
       mineIds={Array.from(mineSet)}
       meta={computeMetaMap(turns)}
+      stats={stats}
     />
   );
 }

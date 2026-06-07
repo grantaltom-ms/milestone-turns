@@ -1,5 +1,5 @@
 import { getServerSupabase } from "@/lib/supabase/server";
-import type { Profile, PropertyRow, Task, TaskNote, Turn, TurnWithTasks } from "@/lib/supabase/types";
+import type { DashboardStats, Profile, PropertyRow, Task, TaskNote, Turn, TurnWithTasks } from "@/lib/supabase/types";
 import type { ProfileMember } from "@/lib/stages";
 
 async function fetchPropertyNames(ids: number[]): Promise<Map<number, string>> {
@@ -20,7 +20,7 @@ export async function loadTurns(): Promise<Turn[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("turns")
-    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at")
+    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at")
     .order("created_at", { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as Omit<Turn, "property_name">[];
@@ -33,7 +33,7 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   const [{ data: turn, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase
       .from("turns")
-      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at")
+      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -54,9 +54,7 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   };
 }
 
-// Open + total tasks counts per turn, scoped to the turn's CURRENT stage. Now
-// that tasks persist across all 6 stages (migration 0008), we filter to the
-// current stage so Board cards still reflect "n left to advance".
+// Open + total tasks counts per turn, scoped to the turn's CURRENT stage.
 export async function loadTaskCounts(): Promise<Map<string, { open: number; total: number }>> {
   const supabase = await getServerSupabase();
   const [{ data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
@@ -65,10 +63,8 @@ export async function loadTaskCounts(): Promise<Map<string, { open: number; tota
   ]);
   if (tErr) throw tErr;
   if (kErr) throw kErr;
-
   const currentStageByTurn = new Map<string, number>();
   for (const t of turns ?? []) currentStageByTurn.set(t.id, t.stage_idx);
-
   const map = new Map<string, { open: number; total: number }>();
   for (const row of tasks ?? []) {
     if (currentStageByTurn.get(row.turn_id) !== row.stage_idx) continue;
@@ -80,18 +76,13 @@ export async function loadTaskCounts(): Promise<Map<string, { open: number; tota
   return map;
 }
 
-/** Set of turn IDs the given user "owns" — either as the turn assignee or
- * because they have at least one open task on the turn's current stage. */
+/** Set of turn IDs the given user "owns". */
 export async function loadMineSet(initials: string): Promise<Set<string>> {
   const supabase = await getServerSupabase();
   const [{ data: ownedTurns, error: oErr }, { data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase.from("turns").select("id").eq("assignee", initials),
     supabase.from("turns").select("id, stage_idx"),
-    supabase
-      .from("turn_tasks")
-      .select("turn_id, stage_idx")
-      .eq("assignee", initials)
-      .eq("done", false),
+    supabase.from("turn_tasks").select("turn_id, stage_idx").eq("assignee", initials).eq("done", false),
   ]);
   if (oErr) throw oErr;
   if (tErr) throw tErr;
@@ -145,14 +136,9 @@ export async function loadTaskNotes(turnId: string, stageIdx?: number): Promise<
       profiles: { name: string } | null;
     };
     return {
-      id: r.id,
-      turn_id: r.turn_id,
-      stage_idx: r.stage_idx,
-      task_name: r.task_name,
-      author_id: r.author_id,
-      author_name: r.profiles?.name ?? "Unknown",
-      content: r.content,
-      created_at: r.created_at,
+      id: r.id, turn_id: r.turn_id, stage_idx: r.stage_idx, task_name: r.task_name,
+      author_id: r.author_id, author_name: r.profiles?.name ?? "Unknown",
+      content: r.content, created_at: r.created_at,
     } satisfies TaskNote;
   });
 }
@@ -182,4 +168,37 @@ export async function loadProfileById(id: string): Promise<Profile | null> {
     .eq("id", id)
     .maybeSingle();
   return data as Profile | null;
+}
+
+/** Whole-day diff between today (UTC) and a date string (YYYY-MM-DD). */
+function daysSinceDate(iso: string): number {
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const then = new Date(iso).getTime();
+  const now = new Date(todayStr).getTime();
+  return Math.max(0, Math.floor((now - then) / (1000 * 60 * 60 * 24)));
+}
+
+/** Compute portfolio-wide dashboard stats from a loaded turns array.
+ *  Pure function — no DB calls. */
+export function computeDashboardStats(turns: Turn[]): DashboardStats {
+  const todayStr = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+
+  const inTurnList = turns.filter((t) => t.stage_idx < 5);
+  const inTurn = inTurnList.length;
+  const overdue = inTurnList.filter((t) => t.target_date < todayStr).length;
+  const onHold = turns.filter((t) => t.hold_status != null).length;
+  const ready = turns.filter((t) => t.stage_idx === 5).length;
+
+  const avgDays =
+    inTurn === 0
+      ? 0
+      : Math.round(
+          (inTurnList.reduce((sum, t) => sum + daysSinceDate(t.vacate_date), 0) / inTurn) * 10,
+        ) / 10;
+
+  return { inTurn, overdue, onHold, ready, avgDays };
 }

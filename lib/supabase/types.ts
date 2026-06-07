@@ -78,3 +78,11 @@ export type TurnEvent = {
   payload: Record<string, unknown> | null;
   created_at: string;
 };
+
+export type DashboardStats = {
+  inTurn: number;
+  overdue: number;
+  onHold: number;
+  ready: number;
+  avgDays: number;
+};
