@@ -145,6 +145,21 @@ export async function loadTaskNotes(turnId: string, stageIdx?: number): Promise<
 
 export type StageDefaultTask = { stage_idx: number; name: string; sort_order: number };
 
+/** Same rows as StageDefaultTask but carrying the serial id (admin reorder/delete need it). */
+export type StageDefaultTaskRow = StageDefaultTask & { id: number };
+
+/** Admin loader: default tasks with their primary key, ordered for the admin board. */
+export async function loadStageDefaultTaskRows(): Promise<StageDefaultTaskRow[]> {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("stage_default_tasks")
+    .select("id, stage_idx, name, sort_order")
+    .order("stage_idx", { ascending: true })
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as StageDefaultTaskRow[];
+}
+
 /** Single source of truth for default checklists per stage. */
 export async function loadStageDefaultTasks(stageIdx?: number): Promise<StageDefaultTask[]> {
   const supabase = await getServerSupabase();

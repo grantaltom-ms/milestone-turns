@@ -39,7 +39,7 @@ export type Profile = {
   id: string;
   name: string;
   email: string;
-  role: "office_lead" | "office" | "maintenance_lead" | "maintenance";
+  role: "office_lead" | "office" | "maintenance_lead" | "maintenance" | "admin";
   initials: string;
   avatar_color: string;
   created_at: string;

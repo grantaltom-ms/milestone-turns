@@ -118,6 +118,16 @@ export function Board({
             </h1>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <UserHeader profile={currentUser} />
+              {currentUser.role === "admin" && (
+                <Link href="/admin" aria-label="Admin" title="Admin"
+                  style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: "1.5px solid rgba(245,241,232,0.3)", color: "rgba(245,241,232,0.85)", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                    <path d="M8 10a2 2 0 100-4 2 2 0 000 4z" stroke="currentColor" strokeWidth="1.3" />
+                    <path d="M8 1.5l1 1.6 1.9-.5.3 1.9 1.9.6-.7 1.8 1.3 1.5-1.3 1.5.7 1.8-1.9.6-.3 1.9-1.9-.5-1 1.6-1-1.6-1.9.5-.3-1.9-1.9-.6.7-1.8L1.6 8l1.3-1.5-.7-1.8 1.9-.6.3-1.9 1.9.5 1-1.6z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+                  </svg>
+                </Link>
+              )}
               <Link href="/turns/import" aria-label="Import CSV" title="Import CSV"
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: "1.5px solid rgba(245,241,232,0.3)", color: "rgba(245,241,232,0.85)", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
               >
