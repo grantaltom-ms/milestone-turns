@@ -43,7 +43,7 @@ export function ImportForm({
   const [fileName, setFileName] = useState<string | null>(null);
   const [rawRows, setRawRows] = useState<RawRow[] | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ created: number; failed: { rowNumber: number; message: string }[] } | null>(null);
+  const [result, setResult] = useState<{ created: number; skipped: number; failed: { rowNumber: number; message: string }[] } | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Re-validate whenever the assignee or parsed rows change.
@@ -353,9 +353,35 @@ export function ImportForm({
                         {(r.property_name_resolved ?? r.raw.property) || "—"}{" "}
                         <span style={{ color: "#2E6B5E" }}>{r.unit_normalized || "—"}</span>
                       </span>
-                      <span style={{ fontWeight: 500, fontSize: 12, color: "rgba(11,27,43,0.5)" }}>
-                        row {r.rowNumber}
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {!r.skip && !r.propertyMatched && (
+                          <span style={{
+                            fontSize: 10.5, fontWeight: 600,
+                            background: "rgba(196,92,59,0.12)",
+                            color: "#8B4A2F",
+                            border: "1px solid rgba(196,92,59,0.3)",
+                            borderRadius: 4,
+                            padding: "1px 6px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                          }}>Property not found</span>
+                        )}
+                        {!r.skip && r.propertyMatched && r.errors.length === 0 && (
+                          <span style={{
+                            fontSize: 10.5, fontWeight: 600,
+                            background: "rgba(61,122,95,0.12)",
+                            color: "#3D7A5F",
+                            border: "1px solid rgba(61,122,95,0.3)",
+                            borderRadius: 4,
+                            padding: "1px 6px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.08em",
+                          }}>Will create</span>
+                        )}
+                        <span style={{ fontWeight: 500, fontSize: 12, color: "rgba(11,27,43,0.5)" }}>
+                          row {r.rowNumber}
+                        </span>
+                      </div>
                     </div>
                     <div
                       style={{
@@ -399,7 +425,9 @@ export function ImportForm({
               color: result.failed.length === 0 ? "#3D7A5F" : "#8B5D17",
             }}
           >
-            Created {result.created} turn{result.created !== 1 ? "s" : ""}.
+            Created {result.created} turn{result.created !== 1 ? "s" : ""},
+            skipped {result.skipped} (already active),
+            {result.failed.length} error{result.failed.length !== 1 ? "s" : ""}.
             {result.failed.length > 0 && (
               <div style={{ marginTop: 6, color: "#8B4A2F", fontSize: 12.5 }}>
                 Failed: {result.failed.map((f) => `row ${f.rowNumber} (${f.message})`).join(", ")}

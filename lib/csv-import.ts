@@ -1,4 +1,3 @@
-
 export type PropertyLookup = Map<string, number>; // normalized name → property_id
 
 // CSV columns we read (matches AppFolio "Unit Vacancy Detail" export). Others
@@ -33,6 +32,7 @@ export type ParsedRow = {
   raw: RawRow;
   property_id: number | null;
   property_name_resolved: string | null;
+  propertyMatched: boolean; // true when property_id was successfully resolved
   unit_normalized: string;
   vacate_iso: string;
   target_iso: string;
@@ -40,18 +40,19 @@ export type ParsedRow = {
   skip: boolean; // true when the row is structurally empty (separator/total)
 };
 
+// Improved normalize: strips common property suffixes so "Stonehaven Apartments"
+// matches a property named "Stonehaven", and normalises punctuation/spacing.
 export function normalizeName(s: string): string {
-  return s.trim().toLowerCase().replace(/\s+/g, " ");
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/[-_]/g, " ")
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\b(apartments?|apts?|llc|inc|properties|property)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
-
-// Try a few fallback forms for property names — AppFolio appends "Apartments",
-// "Apts", etc. that may not be in properties.name.
-const PROPERTY_SUFFIXES = [
-  /\s+apartments?$/i,
-  /\s+apts?\.?$/i,
-  /\s+condos?$/i,
-  /\s+lofts?$/i,
-];
 
 export function lookupPropertyId(
   raw: string,
@@ -59,15 +60,18 @@ export function lookupPropertyId(
 ): { id: number | null; resolvedName: string | null } {
   const trimmed = raw.trim();
   if (!trimmed) return { id: null, resolvedName: null };
-  const direct = byName.get(normalizeName(trimmed));
+
+  // Try the improved normalize directly (handles suffix stripping internally)
+  const normalized = normalizeName(trimmed);
+  const direct = byName.get(normalized);
   if (direct != null) return { id: direct, resolvedName: null };
 
-  for (const suffix of PROPERTY_SUFFIXES) {
-    const stripped = trimmed.replace(suffix, "");
-    if (stripped === trimmed) continue;
-    const hit = byName.get(normalizeName(stripped));
-    if (hit != null) return { id: hit, resolvedName: null };
-  }
+  // Fallback: try the raw trimmed value lowercased (in case the map uses a
+  // simpler key for some entries added before the new normalize was in effect)
+  const simple = trimmed.trim().toLowerCase().replace(/\s+/g, " ");
+  const fallback = byName.get(simple);
+  if (fallback != null) return { id: fallback, resolvedName: null };
+
   return { id: null, resolvedName: null };
 }
 
@@ -108,6 +112,8 @@ export function validateRow(
     !raw.property.trim() && !raw.unit.trim() && !raw.vacate_date.trim() && !raw.target_date.trim();
 
   const { id: property_id } = lookupPropertyId(raw.property, byName);
+  const propertyMatched = property_id != null;
+
   if (!structurallyEmpty) {
     if (!raw.property.trim()) errors.push("property is empty");
     else if (property_id == null) errors.push(`property "${raw.property}" not found`);
@@ -131,7 +137,6 @@ export function validateRow(
   if (!structurallyEmpty) {
     const upper = assignee.trim().toUpperCase();
     if (!upper) errors.push("no assignee picked");
-
   }
 
   return {
@@ -139,6 +144,7 @@ export function validateRow(
     raw,
     property_id,
     property_name_resolved: property_id != null ? (nameById.get(property_id) ?? null) : null,
+    propertyMatched,
     unit_normalized,
     vacate_iso,
     target_iso,

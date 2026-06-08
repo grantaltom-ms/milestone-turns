@@ -185,31 +185,32 @@ export type BulkRow = {
   assignee: string;
 };
 
+type BulkRpcRow = { unit: string; status: "created" | "skipped"; turn_id?: string };
+
 export async function bulkCreateTurnsAction(
   rows: BulkRow[],
-): Promise<{ created: number; failed: { rowNumber: number; message: string }[] }> {
+): Promise<{ created: number; skipped: number; failed: { rowNumber: number; message: string }[] }> {
   const supabase = await getServerSupabase();
   const me = await actor();
-  const failed: { rowNumber: number; message: string }[] = [];
-  let created = 0;
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    const { data: newTurnId, error } = await supabase.rpc("create_turn", {
-      p_property_id: r.property_id,
-      p_unit: r.unit,
-      p_vacate_date: r.vacate_date,
-      p_target_date: r.target_date,
-      p_assignee: r.assignee,
-    });
-    if (error) {
-      failed.push({ rowNumber: i + 1, message: error.message });
-    } else {
-      created += 1;
-      if (newTurnId) await logEvent(newTurnId as string, "created", me);
-    }
-  }
+
+  const { data, error } = await supabase.rpc("bulk_create_turns", {
+    p_rows: rows as unknown as Parameters<typeof supabase.rpc>[1],
+  });
+  if (error) throw error;
+
+  const rpcRows = (data as BulkRpcRow[]) ?? [];
+  const created = rpcRows.filter((r) => r.status === "created").length;
+  const skipped = rpcRows.filter((r) => r.status === "skipped").length;
+
+  // Log a "created" event for each new turn
+  await Promise.all(
+    rpcRows
+      .filter((r) => r.status === "created" && r.turn_id)
+      .map((r) => logEvent(r.turn_id!, "created", me)),
+  );
+
   revalidatePath("/");
-  return { created, failed };
+  return { created, skipped, failed: [] };
 }
 
 /** Add a note to a task. author_id comes from the current session. */
