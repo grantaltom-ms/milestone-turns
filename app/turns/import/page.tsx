@@ -4,12 +4,16 @@ import { getCurrentProfile } from "@/lib/current-user";
 import { loadProfiles } from "@/lib/data";
 import { loadPropertyLookup } from "@/lib/import-data";
 import { membersOnTeam } from "@/lib/stages";
+import { getServerSupabase } from "@/lib/supabase/server";
 
 export default async function ImportTurnsPage() {
-  const [{ byName, nameById }, currentUser, profiles] = await Promise.all([
+  const supabase = await getServerSupabase();
+
+  const [{ byName, nameById }, currentUser, profiles, activeTurnsRes] = await Promise.all([
     loadPropertyLookup(),
     getCurrentProfile(),
     loadProfiles(),
+    supabase.from("turns").select("property_id, unit").lt("stage_idx", 5),
   ]);
 
   if (!currentUser) redirect("/login");
@@ -20,6 +24,12 @@ export default async function ImportTurnsPage() {
   const nameByIdObj: Record<string, string> = {};
   nameById.forEach((v, k) => { nameByIdObj[String(k)] = v; });
 
+  // Build a set of "property_id:unit" keys for active turns so the preview
+  // can flag rows that would be skipped as duplicates.
+  const activeUnitKeys = (activeTurnsRes.data ?? []).map(
+    (t) => `${t.property_id}:${t.unit}`,
+  );
+
   const officeMembers = membersOnTeam("office", profiles);
 
   return (
@@ -28,6 +38,7 @@ export default async function ImportTurnsPage() {
       propertyNameById={nameByIdObj}
       defaultAssignee={currentUser.initials}
       officeMembers={officeMembers}
+      activeUnitKeys={activeUnitKeys}
     />
   );
 }

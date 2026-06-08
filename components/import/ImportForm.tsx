@@ -4,7 +4,7 @@ import Papa from "papaparse";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
-import { bulkCreateTurnsAction } from "@/app/actions";
+import { bulkCreateTurnsAction, type BulkImportResult } from "@/app/actions";
 import {
   IGNORED_COLUMNS,
   type ParsedRow,
@@ -21,11 +21,13 @@ export function ImportForm({
   propertyNameById,
   defaultAssignee,
   officeMembers,
+  activeUnitKeys,
 }: {
   propertyByName: Record<string, number>;
   propertyNameById: Record<string, string>;
   defaultAssignee: string;
   officeMembers: ProfileMember[];
+  activeUnitKeys: string[];
 }) {
   const router = useRouter();
   const byName = useMemo(() => new Map(Object.entries(propertyByName)), [propertyByName]);
@@ -34,6 +36,7 @@ export function ImportForm({
     [propertyNameById],
   );
 
+  const activeKeys = useMemo(() => new Set(activeUnitKeys), [activeUnitKeys]);
   const officeinitials = officeMembers.map((m) => m.initials);
   const initialAssignee = officeinitials.includes(defaultAssignee)
     ? defaultAssignee
@@ -43,7 +46,7 @@ export function ImportForm({
   const [fileName, setFileName] = useState<string | null>(null);
   const [rawRows, setRawRows] = useState<RawRow[] | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ created: number; skipped: number; failed: { rowNumber: number; message: string }[] } | null>(null);
+  const [result, setResult] = useState<BulkImportResult | null>(null);
   const [pending, startTransition] = useTransition();
 
   // Re-validate whenever the assignee or parsed rows change.
@@ -99,7 +102,7 @@ export function ImportForm({
       }));
       const res = await bulkCreateTurnsAction(payload);
       setResult(res);
-      if (res.failed.length === 0) {
+      if (res.errors.length === 0) {
         router.push("/");
         router.refresh();
       }
@@ -330,13 +333,17 @@ export function ImportForm({
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {visibleRows.map((r) => {
                 const bad = r.errors.length > 0;
+                const activeKey = r.property_id != null ? `${r.property_id}:${r.unit_normalized}` : null;
+                const alreadyActive = !bad && activeKey != null && activeKeys.has(activeKey);
+                const borderColor = bad ? "#C45C3B" : alreadyActive ? "#C8922A" : "#3D7A5F";
+                const borderColorAlpha = bad ? "rgba(196,92,59,0.4)" : alreadyActive ? "rgba(200,146,42,0.35)" : "rgba(11,27,43,0.07)";
                 return (
                   <div
                     key={r.rowNumber}
                     style={{
                       background: "#fff",
-                      border: `1px solid ${bad ? "rgba(196,92,59,0.4)" : "rgba(11,27,43,0.07)"}`,
-                      borderLeft: `4px solid ${bad ? "#C45C3B" : "#3D7A5F"}`,
+                      border: `1px solid ${borderColorAlpha}`,
+                      borderLeft: `4px solid ${borderColor}`,
                       borderRadius: 8,
                       padding: "10px 12px",
                     }}
@@ -349,11 +356,11 @@ export function ImportForm({
                         gap: 8,
                       }}
                     >
-                      <span style={{ fontWeight: 600, fontSize: 13.5, color: "#0B1B2B" }}>
-                        {(r.property_name_resolved ?? r.raw.property) || "—"}{" "}
-                        <span style={{ color: "#2E6B5E" }}>{r.unit_normalized || "—"}</span>
-                      </span>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13.5, color: "#0B1B2B" }}>
+                          {(r.property_name_resolved ?? r.raw.property) || "—"}{" "}
+                          <span style={{ color: "#2E6B5E" }}>{r.unit_normalized || "—"}</span>
+                        </span>
                         {!r.skip && !r.propertyMatched && (
                           <span style={{
                             fontSize: 10.5, fontWeight: 600,
@@ -364,24 +371,26 @@ export function ImportForm({
                             padding: "1px 6px",
                             textTransform: "uppercase",
                             letterSpacing: "0.08em",
+                            flexShrink: 0,
                           }}>Property not found</span>
                         )}
-                        {!r.skip && r.propertyMatched && r.errors.length === 0 && (
+                        {alreadyActive && (
                           <span style={{
-                            fontSize: 10.5, fontWeight: 600,
-                            background: "rgba(61,122,95,0.12)",
-                            color: "#3D7A5F",
-                            border: "1px solid rgba(61,122,95,0.3)",
+                            background: "rgba(200,146,42,0.14)",
+                            color: "#8B5D17",
+                            fontWeight: 600,
+                            fontSize: 10.5,
+                            letterSpacing: "0.06em",
+                            padding: "2px 6px",
                             borderRadius: 4,
-                            padding: "1px 6px",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.08em",
-                          }}>Will create</span>
+                            border: "1px solid rgba(200,146,42,0.35)",
+                            flexShrink: 0,
+                          }}>Already active</span>
                         )}
-                        <span style={{ fontWeight: 500, fontSize: 12, color: "rgba(11,27,43,0.5)" }}>
-                          row {r.rowNumber}
-                        </span>
                       </div>
+                      <span style={{ fontWeight: 500, fontSize: 12, color: "rgba(11,27,43,0.5)", flexShrink: 0 }}>
+                        row {r.rowNumber}
+                      </span>
                     </div>
                     <div
                       style={{
@@ -416,21 +425,20 @@ export function ImportForm({
         {result && (
           <div
             style={{
-              background: result.failed.length === 0 ? "rgba(61,122,95,0.12)" : "rgba(200,146,42,0.12)",
-              border: `1px solid ${result.failed.length === 0 ? "rgba(61,122,95,0.3)" : "rgba(200,146,42,0.4)"}`,
+              background: result.errors.length === 0 ? "rgba(61,122,95,0.12)" : "rgba(200,146,42,0.12)",
+              border: `1px solid ${result.errors.length === 0 ? "rgba(61,122,95,0.3)" : "rgba(200,146,42,0.4)"}`,
               borderRadius: 8,
               padding: "12px 14px",
               fontWeight: 500,
               fontSize: 13.5,
-              color: result.failed.length === 0 ? "#3D7A5F" : "#8B5D17",
+              color: result.errors.length === 0 ? "#3D7A5F" : "#8B5D17",
             }}
           >
-            Created {result.created} turn{result.created !== 1 ? "s" : ""},
-            skipped {result.skipped} (already active),
-            {result.failed.length} error{result.failed.length !== 1 ? "s" : ""}.
-            {result.failed.length > 0 && (
+            Created {result.created} turn{result.created !== 1 ? "s" : ""}
+            {result.skipped > 0 ? `, skipped ${result.skipped} (already active)` : ""}.
+            {result.errors.length > 0 && (
               <div style={{ marginTop: 6, color: "#8B4A2F", fontSize: 12.5 }}>
-                Failed: {result.failed.map((f) => `row ${f.rowNumber} (${f.message})`).join(", ")}
+                Errors: {result.errors.join(", ")}
               </div>
             )}
           </div>

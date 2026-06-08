@@ -40,18 +40,22 @@ export type ParsedRow = {
   skip: boolean; // true when the row is structurally empty (separator/total)
 };
 
-// Improved normalize: strips common property suffixes so "Stonehaven Apartments"
-// matches a property named "Stonehaven", and normalises punctuation/spacing.
-export function normalizeName(s: string): string {
+// Aggressive normalization for property name matching — strips common suffixes
+// that AppFolio appends (Apartments, Apts, LLC, etc.) so CSV entries match
+// canonical property names even when they differ in these trailing words.
+function normalize(s: string): string {
   return s
     .toLowerCase()
     .trim()
     .replace(/[-_]/g, " ")
     .replace(/[^a-z0-9 ]/g, "")
-    .replace(/\s+/g, " ")
-    .replace(/\b(apartments?|apts?|llc|inc|properties|property)\b/g, "")
+    .replace(/\b(apartments?|apts?|llc|inc|properties|property|homes?)\b/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function normalizeName(s: string): string {
+  return normalize(s);
 }
 
 export function lookupPropertyId(
@@ -62,13 +66,12 @@ export function lookupPropertyId(
   if (!trimmed) return { id: null, resolvedName: null };
 
   // Try the improved normalize directly (handles suffix stripping internally)
-  const normalized = normalizeName(trimmed);
-  const direct = byName.get(normalized);
+  const direct = byName.get(normalize(trimmed));
   if (direct != null) return { id: direct, resolvedName: null };
 
   // Fallback: try the raw trimmed value lowercased (in case the map uses a
   // simpler key for some entries added before the new normalize was in effect)
-  const simple = trimmed.trim().toLowerCase().replace(/\s+/g, " ");
+  const simple = trimmed.toLowerCase().replace(/\s+/g, " ");
   const fallback = byName.get(simple);
   if (fallback != null) return { id: fallback, resolvedName: null };
 
