@@ -56,6 +56,14 @@ function describe(event: TurnEvent): string {
       return `unchecked "${p.task_name ?? "a task"}"`;
     case "note_added":
       return `added a note on "${p.task_name ?? "a task"}"`;
+    case "phase_skipped":
+      return `skipped the ${stageName(p.stage)} phase`;
+    case "phase_unskipped":
+      return `restored the ${stageName(p.stage)} phase`;
+    case "task_added":
+      return `added task "${p.task_name ?? "a task"}"`;
+    case "task_removed":
+      return `removed task "${p.task_name ?? "a task"}"`;
     default:
       return event.event_type;
   }

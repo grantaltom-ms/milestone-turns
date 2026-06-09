@@ -23,6 +23,24 @@ async function requireAdmin(): Promise<SupabaseClient> {
   return supabase;
 }
 
+// ─── reorder phases (admin UI display order only) ───────────────────────────
+// Writes display_order on admin_stage_config. Does NOT touch stage_idx, so no
+// turn/turn_task data is affected — this only changes how phases are listed in
+// the admin UI. No unique constraint on display_order, so a single pass is safe.
+export async function reorderStagesAction(
+  stages: { stage_idx: number; display_order: number }[],
+) {
+  const supabase = await requireAdmin();
+  for (const s of stages) {
+    const { error } = await supabase
+      .from("admin_stage_config")
+      .update({ display_order: s.display_order })
+      .eq("stage_idx", s.stage_idx);
+    if (error) throw error;
+  }
+  revalidatePath("/admin");
+}
+
 // ─── reorder default tasks within a stage ───────────────────────────────────
 // `tasks` is the full set of rows for ONE stage, in the desired final order.
 // The unique index on (stage_idx, sort_order) means we can't move rows straight

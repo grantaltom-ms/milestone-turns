@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/current-user";
-import { loadStageDefaultTaskRows, type StageDefaultTaskRow } from "@/lib/data";
+import { loadStageDefaultTaskRows, loadStageDisplayConfig, type StageDefaultTaskRow } from "@/lib/data";
 import { STAGES, STAGE_TEAM } from "@/lib/stages";
 import { AdminBoard, type AdminStage } from "./AdminBoard";
 
@@ -13,18 +13,28 @@ export default async function AdminPage() {
   if (!profile) redirect("/login");
   if (profile.role !== "admin") redirect("/");
 
-  const rows = await loadStageDefaultTaskRows();
+  const [rows, displayConfig] = await Promise.all([
+    loadStageDefaultTaskRows(),
+    loadStageDisplayConfig(),
+  ]);
 
-  // Group rows under their phase (stage_idx position in STAGES).
+  // Display order is keyed by stage_idx; fall back to stage_idx if unset.
+  const orderByIdx = new Map<number, number>(displayConfig.map((c) => [c.stage_idx, c.display_order]));
+
+  // Build one card per phase (stage_idx position in STAGES) ...
   const stages: AdminStage[] = STAGES.map((s, idx) => ({
     stageIdx: idx,
     name: s.name,
     color: s.color,
     team: STAGE_TEAM[idx],
+    displayOrder: orderByIdx.get(idx) ?? idx,
     tasks: rows
       .filter((r: StageDefaultTaskRow) => r.stage_idx === idx)
       .sort((a, b) => a.sort_order - b.sort_order),
   }));
+
+  // ... then list them in the admin's chosen display order.
+  stages.sort((a, b) => a.displayOrder - b.displayOrder);
 
   return <AdminBoard stages={stages} />;
 }

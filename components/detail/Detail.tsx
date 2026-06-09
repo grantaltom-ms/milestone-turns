@@ -14,6 +14,7 @@ import {
   setStageAssigneeAction,
   setTaskAssigneeAction,
   toggleTaskAction,
+  togglePhaseSkipAction,
   revertTurnAction,
   updateTurnAction,
 } from "@/app/actions";
@@ -54,6 +55,8 @@ export function Detail({
 }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(turn.tasks);
+  // Skipped phases — optimistic local mirror of turn.skipped_phases.
+  const [skipped, setSkipped] = useState<Set<number>>(() => new Set(turn.skipped_phases ?? []));
   const [picker, setPicker] = useState<
     | { kind: "task"; taskId: string }
     | { kind: "stage"; stageIdx: number }
@@ -73,6 +76,7 @@ export function Detail({
   const holdLabel = isBlocked ? "Blocked" : "On Hold";
 
   useEffect(() => { setTasks(turn.tasks); }, [turn.tasks]);
+  useEffect(() => { setSkipped(new Set(turn.skipped_phases ?? [])); }, [turn.skipped_phases]);
 
   useEffect(() => {
     const supabase = getBrowserSupabase();
@@ -124,9 +128,15 @@ export function Detail({
 
   const currentTasks = tasksByStage.get(turn.stage_idx) ?? [];
   const openCurrent = currentTasks.filter((t) => !t.done).length;
-  const allCurrentDone = openCurrent === 0 && currentTasks.length > 0;
+  // No open tasks → ready to advance. Also covers a stage whose tasks were all
+  // removed for this turn (the advance RPC allows it; the UI must too).
+  const allCurrentDone = openCurrent === 0;
+  const currentStageSkipped = skipped.has(turn.stage_idx);
+  // A skipped current stage can advance without completing its tasks.
+  const canAdvance = !isLast && !isHeld && (currentStageSkipped || allCurrentDone);
   const isHandoffPoint =
     allCurrentDone &&
+    !currentStageSkipped &&
     !isLast &&
     STAGE_TEAM[turn.stage_idx] === "office" &&
     STAGE_TEAM[turn.stage_idx + 1] === "maintenance";
@@ -169,8 +179,19 @@ export function Detail({
   }
 
   function onAdvance() {
-    if (!allCurrentDone || isLast || isHeld) return;
+    if (!canAdvance) return;
     startTransition(() => { void advanceTurnAction(turn.id); });
+  }
+
+  function onToggleSkip(stageIdx: number, skip: boolean) {
+    // Optimistic: update the local set, then persist.
+    setSkipped((prev) => {
+      const next = new Set(prev);
+      if (skip) next.add(stageIdx);
+      else next.delete(stageIdx);
+      return next;
+    });
+    startTransition(() => { void togglePhaseSkipAction(turn.id, stageIdx, skip); });
   }
 
   function onPickTaskAssignee(taskId: string, newAssignee: string) {
@@ -396,11 +417,14 @@ export function Detail({
             stageName={stage.name}
             stageColor={stage.color}
             interactivity={interactivityFor(i)}
+            skipped={skipped.has(i)}
+            canSkip={!isHeld && interactivityFor(i) !== "past" && i !== STAGES.length - 1}
             tasks={tasksByStage.get(i) ?? []}
             profiles={profiles}
             notesByTask={notesByStageTask.get(i) ?? new Map()}
             turnId={turn.id}
             onToggle={onToggle}
+            onToggleSkip={(skip) => onToggleSkip(i, skip)}
             onReassignTask={(taskId) => setPicker({ kind: "task", taskId })}
             onReassignStage={(stageIdx) => setPicker({ kind: "stage", stageIdx })}
             onAddTask={(name) => {
@@ -477,23 +501,25 @@ export function Detail({
             <button
               type="button"
               onClick={onAdvance}
-              disabled={!allCurrentDone}
+              disabled={!canAdvance}
               style={{
                 width: "100%",
                 padding: 15,
                 borderRadius: 8,
                 border: "none",
-                cursor: allCurrentDone ? "pointer" : "not-allowed",
-                background: allCurrentDone ? "#2E6B5E" : "#E8E4DC",
-                color: allCurrentDone ? "#fff" : "rgba(11,27,43,0.28)",
+                cursor: canAdvance ? "pointer" : "not-allowed",
+                background: currentStageSkipped ? "#697E94" : canAdvance ? "#2E6B5E" : "#E8E4DC",
+                color: canAdvance ? "#fff" : "rgba(11,27,43,0.28)",
                 fontWeight: 600,
                 fontSize: 15,
                 transition: "background 0.2s",
               }}
             >
-              {allCurrentDone
-                ? `Advance to ${STAGES[turn.stage_idx + 1].name} →`
-                : `${openCurrent} task${openCurrent !== 1 ? "s" : ""} left before advancing`}
+              {currentStageSkipped
+                ? `Skip ${STAGES[turn.stage_idx].name} → ${STAGES[turn.stage_idx + 1].name}`
+                : allCurrentDone
+                  ? `Advance to ${STAGES[turn.stage_idx + 1].name} →`
+                  : `${openCurrent} task${openCurrent !== 1 ? "s" : ""} left before advancing`}
             </button>
           )}
         </div>
@@ -582,11 +608,14 @@ function StageSection({
   stageName,
   stageColor,
   interactivity,
+  skipped,
+  canSkip,
   tasks,
   profiles,
   notesByTask,
   turnId,
   onToggle,
+  onToggleSkip,
   onReassignTask,
   onReassignStage,
   onAddTask,
@@ -596,24 +625,30 @@ function StageSection({
   stageName: string;
   stageColor: string;
   interactivity: Interactivity;
+  skipped: boolean;
+  canSkip: boolean;
   tasks: Task[];
   profiles: ProfileMember[];
   notesByTask: Map<string, TaskNote[]>;
   turnId: string;
   onToggle: (t: Task) => void;
+  onToggleSkip: (skip: boolean) => void;
   onReassignTask: (taskId: string) => void;
   onReassignStage: (stageIdx: number) => void;
   onAddTask: (name: string) => void;
   onDeleteTask: (taskId: string) => void;
 }) {
-  const [open, setOpen] = useState(interactivity === "current");
+  const [open, setOpen] = useState(interactivity === "current" && !skipped);
   const [newTaskName, setNewTaskName] = useState("");
   const doneCount = tasks.filter((t) => t.done).length;
   const totalCount = tasks.length;
-  const canReassign = interactivity !== "past";
+  const canReassign = interactivity !== "past" && !skipped;
+  // Per-turn editing (add/remove tasks) is allowed on any non-past, non-skipped stage.
+  const canEditTasks = interactivity !== "past" && !skipped;
 
-  const summary =
-    interactivity === "past"
+  const summary = skipped
+    ? "Skipped"
+    : interactivity === "past"
       ? totalCount > 0
         ? `Complete · ${totalCount} task${totalCount !== 1 ? "s" : ""}`
         : "Complete"
@@ -623,8 +658,9 @@ function StageSection({
           ? `${doneCount} of ${totalCount} done`
           : "No tasks";
 
-  const eyebrowColor =
-    interactivity === "past"
+  const eyebrowColor = skipped
+    ? "rgba(11,27,43,0.4)"
+    : interactivity === "past"
       ? "rgba(11,27,43,0.45)"
       : interactivity === "future"
         ? "rgba(11,27,43,0.55)"
@@ -633,68 +669,111 @@ function StageSection({
   const stageAssignee = tasks[0]?.assignee;
 
   return (
-    <div style={{ marginBottom: 14 }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        style={{
-          width: "100%",
-          background: "transparent",
-          border: "none",
-          padding: "0 0 8px 0",
-          textAlign: "left",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-        aria-expanded={open}
-      >
-        <span
+    <div style={{ marginBottom: 14, opacity: skipped ? 0.72 : 1 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 8 }}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
           style={{
-            display: "inline-block",
-            width: 8,
-            height: 8,
-            borderRadius: 2,
-            background: interactivity === "future" ? "rgba(11,27,43,0.15)" : stageColor,
-            flexShrink: 0,
+            flex: 1,
+            minWidth: 0,
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            textAlign: "left",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
           }}
-        />
-        <span
-          style={{
-            fontWeight: 600,
-            fontSize: 10.5,
-            textTransform: "uppercase",
-            letterSpacing: "0.16em",
-            color: eyebrowColor,
-          }}
+          aria-expanded={open}
         >
-          {interactivity === "past" && "✓ "}
-          {stageIdx + 1}. {stageName} · {summary}
-        </span>
-        <span
-          style={{
-            marginLeft: "auto",
-            fontSize: 11,
-            color: "rgba(11,27,43,0.4)",
-            transform: open ? "rotate(90deg)" : "rotate(0)",
-            transition: "transform 0.15s",
-          }}
-          aria-hidden="true"
-        >
-          ▸
-        </span>
-      </button>
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: 2,
+              background: skipped || interactivity === "future" ? "rgba(11,27,43,0.15)" : stageColor,
+              flexShrink: 0,
+            }}
+          />
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: 10.5,
+              textTransform: "uppercase",
+              letterSpacing: "0.16em",
+              color: eyebrowColor,
+              textDecoration: skipped ? "line-through" : "none",
+            }}
+          >
+            {!skipped && interactivity === "past" && "✓ "}
+            {stageIdx + 1}. {stageName} · {summary}
+          </span>
+          {skipped && (
+            <span
+              style={{
+                background: "rgba(11,27,43,0.08)",
+                color: "rgba(11,27,43,0.55)",
+                borderRadius: 999,
+                padding: "2px 8px",
+                fontSize: 9.5,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.1em",
+                flexShrink: 0,
+              }}
+            >
+              Skipped
+            </span>
+          )}
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: 11,
+              color: "rgba(11,27,43,0.4)",
+              transform: open ? "rotate(90deg)" : "rotate(0)",
+              transition: "transform 0.15s",
+              flexShrink: 0,
+            }}
+            aria-hidden="true"
+          >
+            ▸
+          </span>
+        </button>
+        {canSkip && (
+          <button
+            type="button"
+            onClick={() => onToggleSkip(!skipped)}
+            title={skipped ? "Restore this phase" : "Skip this phase — its tasks won't block advancing"}
+            style={{
+              flexShrink: 0,
+              padding: "4px 9px",
+              borderRadius: 999,
+              border: `1px solid ${skipped ? "rgba(46,107,94,0.4)" : "rgba(11,27,43,0.18)"}`,
+              background: "transparent",
+              color: skipped ? "#2E6B5E" : "rgba(11,27,43,0.5)",
+              fontFamily: "var(--font-sans)",
+              fontWeight: 600,
+              fontSize: 11,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {skipped ? "Un-skip" : "Skip phase"}
+          </button>
+        )}
+      </div>
 
-      {open && tasks.length === 0 && (
-        <div style={{ fontWeight: 400, fontSize: 12.5, color: "rgba(11,27,43,0.4)", fontStyle: "italic", padding: "8px 4px" }}>
-          No tasks for this stage.
-        </div>
-      )}
-
-      {open && tasks.length > 0 && (
+      {open && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {canReassign && stageAssignee && (
+          {tasks.length === 0 && (
+            <div style={{ fontWeight: 400, fontSize: 12.5, color: "rgba(11,27,43,0.4)", fontStyle: "italic", padding: "8px 4px" }}>
+              {skipped ? "Phase skipped — these tasks won't block advancing." : "No tasks for this stage."}
+            </div>
+          )}
+          {tasks.length > 0 && canReassign && stageAssignee && (
             <div
               style={{
                 display: "flex",
@@ -741,6 +820,7 @@ function StageSection({
               key={task.id}
               task={task}
               interactivity={interactivity}
+              skipped={skipped}
               profiles={profiles}
               notes={notesByTask.get(task.name) ?? []}
               turnId={turnId}
@@ -751,7 +831,7 @@ function StageSection({
             />
           ))}
 
-          {interactivity === "current" && (
+          {canEditTasks && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -806,6 +886,7 @@ function StageSection({
 function TaskRow({
   task,
   interactivity,
+  skipped,
   profiles,
   notes,
   turnId,
@@ -816,6 +897,7 @@ function TaskRow({
 }: {
   task: Task;
   interactivity: Interactivity;
+  skipped: boolean;
   profiles: ProfileMember[];
   notes: TaskNote[];
   turnId: string;
@@ -824,10 +906,11 @@ function TaskRow({
   onReassign: (taskId: string) => void;
   onDelete: (taskId: string) => void;
 }) {
-  const canToggle = interactivity === "current";
-  const canReassign = interactivity !== "past";
-  const canDelete = interactivity === "current" && !task.done;
-  const dim = interactivity === "current" ? (task.done ? 0.65 : 1) : 0.78;
+  const canToggle = interactivity === "current" && !skipped;
+  const canReassign = interactivity !== "past" && !skipped;
+  // Per-turn task removal allowed on any non-past, non-skipped stage.
+  const canDelete = interactivity !== "past" && !skipped;
+  const dim = skipped ? 0.55 : interactivity === "current" ? (task.done ? 0.65 : 1) : 0.78;
 
   return (
     <div
@@ -884,10 +967,34 @@ function TaskRow({
               fontSize: 14,
               lineHeight: 1.4,
               color: "#0B1B2B",
-              textDecoration: task.done ? "line-through" : "none",
+              textDecoration: task.done || skipped ? "line-through" : "none",
             }}
           >
             {task.name}
+            {task.is_custom && (
+              <span
+                style={{
+                  marginLeft: 7,
+                  background: "rgba(46,107,94,0.12)",
+                  color: "#2E6B5E",
+                  borderRadius: 999,
+                  padding: "1px 7px",
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  textDecoration: "none",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Added
+              </span>
+            )}
+            {skipped && (
+              <span style={{ marginLeft: 7, fontSize: 11, fontWeight: 600, color: "rgba(11,27,43,0.4)", textDecoration: "none" }}>
+                N/A
+              </span>
+            )}
           </span>
         </div>
         <button

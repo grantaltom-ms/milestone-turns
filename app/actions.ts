@@ -329,22 +329,72 @@ export async function addTaskAction(turnId: string, stageIdx: number, name: stri
     assignee,
     done: false,
     sort_order: sortOrder,
+    is_custom: true, // one-off task added on this specific turn
   });
   if (error) throw error;
+
+  const me = await actor();
+  await logEvent(turnId, "task_added", me, { task_name: name.trim(), stage: stageIdx });
+
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
 }
 
+/**
+ * Remove a task from a turn. Custom (one-off) tasks are hard-deleted; default
+ * tasks are soft-removed (kept in the row, flagged `removed`) so the underlying
+ * template in stage_default_tasks is never touched.
+ */
 export async function deleteTaskAction(taskId: string) {
   const supabase = await getServerSupabase();
-  const { data, error } = await supabase
+  const { data: existing, error: lookupErr } = await supabase
     .from("turn_tasks")
-    .delete()
+    .select("turn_id, name, stage_idx, is_custom")
     .eq("id", taskId)
-    .select("turn_id")
     .maybeSingle();
+  if (lookupErr) throw lookupErr;
+  const task = existing as { turn_id: string; name: string; stage_idx: number; is_custom: boolean } | null;
+  if (!task) return;
+
+  if (task.is_custom) {
+    const { error } = await supabase.from("turn_tasks").delete().eq("id", taskId);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from("turn_tasks").update({ removed: true }).eq("id", taskId);
+    if (error) throw error;
+  }
+
+  const me = await actor();
+  await logEvent(task.turn_id, "task_removed", me, { task_name: task.name, stage: task.stage_idx });
+
+  revalidatePath(`/turns/${task.turn_id}`);
+  revalidatePath("/");
+}
+
+/** Skip or un-skip a phase on a turn. Any authenticated user with turn access. */
+export async function togglePhaseSkipAction(turnId: string, stageIdx: number, skip: boolean) {
+  const supabase = await getServerSupabase();
+  const { data: turn, error: readErr } = await supabase
+    .from("turns")
+    .select("skipped_phases")
+    .eq("id", turnId)
+    .maybeSingle();
+  if (readErr) throw readErr;
+
+  const current = new Set<number>(((turn as { skipped_phases: number[] } | null)?.skipped_phases) ?? []);
+  if (skip) current.add(stageIdx);
+  else current.delete(stageIdx);
+
+  const { error } = await supabase
+    .from("turns")
+    .update({ skipped_phases: Array.from(current).sort((a, b) => a - b) })
+    .eq("id", turnId);
   if (error) throw error;
-  if (data?.turn_id) revalidatePath(`/turns/${data.turn_id}`);
+
+  const me = await actor();
+  await logEvent(turnId, skip ? "phase_skipped" : "phase_unskipped", me, { stage: stageIdx });
+
+  revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
 }
 

@@ -15,6 +15,8 @@ export type Turn = {
   hold_status: HoldStatus | null;
   hold_reason: string | null;
   held_at: string | null;
+  // stage_idx values skipped on this turn (display-only / advance bypass)
+  skipped_phases: number[];
 };
 
 export type Task = {
@@ -27,6 +29,8 @@ export type Task = {
   stage_idx: number;
   done_at: string | null;
   completed_by: string | null;
+  // one-off task added for this turn (vs. seeded from defaults)
+  is_custom: boolean;
 };
 
 export type TurnWithTasks = Turn & { tasks: Task[] };
@@ -68,7 +72,11 @@ export type TurnEventType =
   | "task_completed"
   | "task_reopened"
   | "note_added"
-  | "reverted";
+  | "reverted"
+  | "phase_skipped"
+  | "phase_unskipped"
+  | "task_added"
+  | "task_removed";
 
 export type TurnEvent = {
   id: string;

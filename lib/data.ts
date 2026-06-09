@@ -20,7 +20,7 @@ export async function loadTurns(): Promise<Turn[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("turns")
-    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at")
+    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases")
     .order("created_at", { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as Omit<Turn, "property_name">[];
@@ -33,13 +33,14 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   const [{ data: turn, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase
       .from("turns")
-      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at")
+      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases")
       .eq("id", id)
       .maybeSingle(),
     supabase
       .from("turn_tasks")
-      .select("id, turn_id, name, assignee, done, sort_order, stage_idx, done_at, completed_by")
+      .select("id, turn_id, name, assignee, done, sort_order, stage_idx, done_at, completed_by, is_custom")
       .eq("turn_id", id)
+      .eq("removed", false) // soft-removed tasks are hidden for this turn
       .order("stage_idx", { ascending: true })
       .order("sort_order", { ascending: true }),
   ]);
@@ -58,16 +59,22 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
 export async function loadTaskCounts(): Promise<Map<string, { open: number; total: number }>> {
   const supabase = await getServerSupabase();
   const [{ data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
-    supabase.from("turns").select("id, stage_idx"),
-    supabase.from("turn_tasks").select("turn_id, stage_idx, done"),
+    supabase.from("turns").select("id, stage_idx, skipped_phases"),
+    supabase.from("turn_tasks").select("turn_id, stage_idx, done, removed"),
   ]);
   if (tErr) throw tErr;
   if (kErr) throw kErr;
   const currentStageByTurn = new Map<string, number>();
-  for (const t of turns ?? []) currentStageByTurn.set(t.id, t.stage_idx);
+  const skippedByTurn = new Map<string, Set<number>>();
+  for (const t of turns ?? []) {
+    currentStageByTurn.set(t.id, t.stage_idx);
+    skippedByTurn.set(t.id, new Set(((t.skipped_phases as number[] | null) ?? [])));
+  }
   const map = new Map<string, { open: number; total: number }>();
   for (const row of tasks ?? []) {
+    if (row.removed) continue; // soft-removed tasks don't count
     if (currentStageByTurn.get(row.turn_id) !== row.stage_idx) continue;
+    if (skippedByTurn.get(row.turn_id)?.has(row.stage_idx)) continue; // skipped stage has no open work
     const cur = map.get(row.turn_id) ?? { open: 0, total: 0 };
     cur.total += 1;
     if (!row.done) cur.open += 1;
@@ -81,8 +88,8 @@ export async function loadMineSet(initials: string): Promise<Set<string>> {
   const supabase = await getServerSupabase();
   const [{ data: ownedTurns, error: oErr }, { data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase.from("turns").select("id").eq("assignee", initials),
-    supabase.from("turns").select("id, stage_idx"),
-    supabase.from("turn_tasks").select("turn_id, stage_idx").eq("assignee", initials).eq("done", false),
+    supabase.from("turns").select("id, stage_idx, skipped_phases"),
+    supabase.from("turn_tasks").select("turn_id, stage_idx").eq("assignee", initials).eq("done", false).eq("removed", false),
   ]);
   if (oErr) throw oErr;
   if (tErr) throw tErr;
@@ -90,9 +97,15 @@ export async function loadMineSet(initials: string): Promise<Set<string>> {
   const set = new Set<string>();
   for (const row of ownedTurns ?? []) set.add(row.id);
   const currentStage = new Map<string, number>();
-  for (const t of turns ?? []) currentStage.set(t.id, t.stage_idx);
+  const skipped = new Map<string, Set<number>>();
+  for (const t of turns ?? []) {
+    currentStage.set(t.id, t.stage_idx);
+    skipped.set(t.id, new Set(((t.skipped_phases as number[] | null) ?? [])));
+  }
   for (const k of tasks ?? []) {
-    if (currentStage.get(k.turn_id) === k.stage_idx) set.add(k.turn_id);
+    if (currentStage.get(k.turn_id) === k.stage_idx && !skipped.get(k.turn_id)?.has(k.stage_idx)) {
+      set.add(k.turn_id);
+    }
   }
   return set;
 }
@@ -147,6 +160,19 @@ export type StageDefaultTask = { stage_idx: number; name: string; sort_order: nu
 
 /** Same rows as StageDefaultTask but carrying the serial id (admin reorder/delete need it). */
 export type StageDefaultTaskRow = StageDefaultTask & { id: number };
+
+export type StageDisplayConfig = { stage_idx: number; display_order: number };
+
+/** Admin loader: the display-order config for phases (admin UI only). */
+export async function loadStageDisplayConfig(): Promise<StageDisplayConfig[]> {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("admin_stage_config")
+    .select("stage_idx, display_order")
+    .order("display_order", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as StageDisplayConfig[];
+}
 
 /** Admin loader: default tasks with their primary key, ordered for the admin board. */
 export async function loadStageDefaultTaskRows(): Promise<StageDefaultTaskRow[]> {
