@@ -53,6 +53,8 @@ function LoginForm() {
   const errorParam = search.get("error");
 
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<"magic" | "password">("magic");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(
     errorParam === "auth_failed" ? "Sign-in link expired or invalid. Try again." :
@@ -66,6 +68,22 @@ function LoginForm() {
     setError(null);
 
     const supabase = getBrowserSupabase();
+
+    if (mode === "password") {
+      const { error: pwErr } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      setPending(false);
+      if (pwErr) {
+        setError("Incorrect email or password");
+        return;
+      }
+      window.location.href = "/";
+      return;
+    }
+
     const redirectTo =
       typeof window !== "undefined"
         ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
@@ -82,6 +100,11 @@ function LoginForm() {
       return;
     }
     setSent(true);
+  }
+
+  function toggleMode() {
+    setMode((m) => (m === "magic" ? "password" : "magic"));
+    setError(null);
   }
 
   const labelStyle: React.CSSProperties = {
@@ -162,6 +185,21 @@ function LoginForm() {
           />
         </label>
 
+        {mode === "password" && (
+          <label>
+            <span style={labelStyle}>Password</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+              placeholder="••••••••"
+              style={inputStyle}
+            />
+          </label>
+        )}
+
         {error && (
           <div
             style={{
@@ -194,7 +232,26 @@ function LoginForm() {
             transition: "opacity 0.15s",
           }}
         >
-          {pending ? "Sending…" : "Send sign-in link"}
+          {pending
+            ? mode === "password" ? "Signing in…" : "Sending…"
+            : mode === "password" ? "Sign in" : "Send sign-in link"}
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleMode}
+          style={{
+            background: "transparent",
+            border: "none",
+            padding: 0,
+            color: "rgba(245,241,232,0.55)",
+            fontSize: 13,
+            cursor: "pointer",
+            textDecoration: "underline",
+            alignSelf: "center",
+          }}
+        >
+          {mode === "password" ? "Send me a sign-in link instead" : "Sign in with password instead"}
         </button>
       </form>
     </Shell>
