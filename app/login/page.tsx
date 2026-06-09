@@ -39,7 +39,7 @@ function Shell({ children }: { children?: React.ReactNode }) {
           Milestone Turns
         </div>
         <p style={{ fontWeight: 300, fontSize: 14, color: "rgba(245,241,232,0.55)", margin: 0 }}>
-          Team access only. Enter your email to sign in.
+          Enter your email to sign in.
         </p>
       </div>
       {children}
@@ -119,7 +119,7 @@ function LoginForm() {
             lineHeight: 1.55,
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Check your email ✓</div>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Check your email for a sign-in link ✓</div>
           We sent a sign-in link to <strong style={{ color: "#F5F1E8" }}>{email}</strong>.
           <br /><br />
           Click the link in the email to continue. It expires in 1 hour.
@@ -194,7 +194,7 @@ function LoginForm() {
             transition: "opacity 0.15s",
           }}
         >
-          {pending ? "Sending…" : "Send me a sign-in link"}
+          {pending ? "Sending…" : "Send sign-in link"}
         </button>
       </form>
     </Shell>

@@ -24,17 +24,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/login?error=auth_failed`);
   }
 
-  // Check if the user has a profile yet
+  // Check whether the user's profile already has a name. Admins can
+  // pre-create profiles (name + initials + email + role) in Supabase; those
+  // users skip onboarding and go straight to the board.
   const { data: { user } } = await supabase.auth.getUser();
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("id")
+      .select("name")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (!profile) {
-      // First login — send to onboarding; preserve the original destination
+    if (!profile?.name) {
+      // No name yet — send to onboarding; preserve the original destination
       const onboardUrl = new URL("/onboarding", origin);
       if (next !== "/") onboardUrl.searchParams.set("next", next);
       return NextResponse.redirect(onboardUrl.toString());
