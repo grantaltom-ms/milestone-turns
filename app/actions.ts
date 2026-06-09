@@ -16,6 +16,14 @@ async function actor(): Promise<string> {
   }
 }
 
+/** advance_turn returns the updated turn row (object, or 1-element array). Pull
+ * its stage_idx, falling back to `fallback` if the shape is unexpected. */
+function rpcStageIdx(data: unknown, fallback: number): number {
+  const row = Array.isArray(data) ? data[0] : data;
+  const idx = (row as { stage_idx?: number } | null)?.stage_idx;
+  return typeof idx === "number" ? idx : fallback;
+}
+
 // ─── task actions ─────────────────────────────────────────────────────────────
 
 export async function toggleTaskAction(taskId: string, done: boolean) {
@@ -106,13 +114,15 @@ export async function advanceTurnAction(turnId: string) {
     .maybeSingle();
   const fromStage = (before as { stage_idx: number } | null)?.stage_idx ?? 0;
 
-  const { error } = await supabase.rpc("advance_turn", { p_turn_id: turnId });
+  const { data, error } = await supabase.rpc("advance_turn", { p_turn_id: turnId });
   if (error) throw error;
+  // advance_turn may auto-jump skipped phases, so read the real landing stage.
+  const landed = rpcStageIdx(data, fromStage + 1);
 
   const me = await actor();
   await logEvent(turnId, "advanced", me, {
     from_stage: fromStage,
-    to_stage: fromStage + 1,
+    to_stage: landed,
   });
 
   revalidatePath(`/turns/${turnId}`);
@@ -130,11 +140,13 @@ export async function handoffToMaintenanceAction(turnId: string, assignee: strin
     .maybeSingle();
   const fromStage = (before as { stage_idx: number } | null)?.stage_idx ?? 1;
 
-  const { error: advErr } = await supabase.rpc("advance_turn", { p_turn_id: turnId });
+  const { data, error: advErr } = await supabase.rpc("advance_turn", { p_turn_id: turnId });
   if (advErr) throw advErr;
+  // Assign the stage we actually landed on (advance may auto-jump skipped phases).
+  const landed = rpcStageIdx(data, fromStage + 1);
   const [turnRes, taskRes] = await Promise.all([
     supabase.from("turns").update({ assignee }).eq("id", turnId),
-    supabase.from("turn_tasks").update({ assignee }).eq("turn_id", turnId).eq("stage_idx", fromStage + 1),
+    supabase.from("turn_tasks").update({ assignee }).eq("turn_id", turnId).eq("stage_idx", landed),
   ]);
   if (turnRes.error) throw turnRes.error;
   if (taskRes.error) throw taskRes.error;
@@ -142,7 +154,7 @@ export async function handoffToMaintenanceAction(turnId: string, assignee: strin
   const me = await actor();
   await logEvent(turnId, "handed_off", me, {
     from_stage: fromStage,
-    to_stage: fromStage + 1,
+    to_stage: landed,
     assigned_to: assignee,
   });
 

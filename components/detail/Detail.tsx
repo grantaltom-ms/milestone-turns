@@ -134,6 +134,13 @@ export function Detail({
   const currentStageSkipped = skipped.has(turn.stage_idx);
   // A skipped current stage can advance without completing its tasks.
   const canAdvance = !isLast && !isHeld && (currentStageSkipped || allCurrentDone);
+  // Where advancing actually lands: first non-skipped stage at/after the next
+  // one, capped at the terminal stage (mirrors advance_turn's auto-jump).
+  const destStage = (() => {
+    let d = turn.stage_idx + 1;
+    while (d < STAGES.length - 1 && skipped.has(d)) d++;
+    return d;
+  })();
   const isHandoffPoint =
     allCurrentDone &&
     !currentStageSkipped &&
@@ -441,13 +448,13 @@ export function Detail({
           <div style={{ background: "rgba(26,46,68,0.07)", border: "1px solid rgba(26,46,68,0.18)", borderRadius: 8, padding: "12px 14px", marginTop: 16, lineHeight: 1.5 }}>
             <div style={{ fontWeight: 600, fontSize: 13, color: "#1A2E44", marginBottom: 2 }}>Office work complete</div>
             <div style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.6)" }}>
-              Tap below to assign a maintenance team member and hand off to <strong>{STAGES[turn.stage_idx + 1].name}</strong>.
+              Tap below to assign a maintenance team member and hand off to <strong>{STAGES[destStage].name}</strong>.
             </div>
           </div>
         )}
         {allCurrentDone && !isLast && !isHandoffPoint && !isHeld && (
           <div style={{ background: "rgba(46,107,94,0.1)", border: "1px solid rgba(46,107,94,0.25)", borderRadius: 8, padding: "12px 14px", marginTop: 16, fontWeight: 400, fontSize: 13.5, lineHeight: 1.5, color: "#2A5C46" }}>
-            All done. Tap below to advance to <strong>{STAGES[turn.stage_idx + 1].name}</strong>.
+            All done. Tap below to advance to <strong>{STAGES[destStage].name}</strong>.
           </div>
         )}
         {isLast && allCurrentDone && (
@@ -516,9 +523,9 @@ export function Detail({
               }}
             >
               {currentStageSkipped
-                ? `Skip ${STAGES[turn.stage_idx].name} → ${STAGES[turn.stage_idx + 1].name}`
+                ? `Skip ${STAGES[turn.stage_idx].name} → ${STAGES[destStage].name}`
                 : allCurrentDone
-                  ? `Advance to ${STAGES[turn.stage_idx + 1].name} →`
+                  ? `Advance to ${STAGES[destStage].name} →`
                   : `${openCurrent} task${openCurrent !== 1 ? "s" : ""} left before advancing`}
             </button>
           )}
