@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
-import { SegBar } from "@/components/SegBar";
 import { StageTag } from "@/components/StageTag";
 import { avatarColorFromProfiles, STAGES, type ProfileMember } from "@/lib/stages";
 import type { Turn } from "@/lib/supabase/types";
@@ -114,9 +113,6 @@ export function TurnCard({
           )}
         </span>
         <Avatar initials={turn.assignee} size={26} color={avatarColorFromProfiles(turn.assignee, profiles)} />
-      </div>
-      <div style={{ marginTop: 9 }}>
-        <SegBar stageIdx={turn.stage_idx} />
       </div>
     </Link>
   );

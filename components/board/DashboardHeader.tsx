@@ -17,12 +17,6 @@ const TILES: TileConfig[] = [
     activeColor: () => "#F5F1E8",
   },
   {
-    key: "overdue",
-    label: "Overdue",
-    filterTarget: "Overdue",
-    activeColor: (v) => (v > 0 ? "#C84A2F" : "#F5F1E8"),
-  },
-  {
     key: "onHold",
     label: "On Hold",
     filterTarget: "On Hold",
@@ -32,12 +26,6 @@ const TILES: TileConfig[] = [
     key: "ready",
     label: "Ready",
     activeColor: (v) => (v > 0 ? "#3D7A5F" : "#F5F1E8"),
-  },
-  {
-    key: "avgDays",
-    label: "Avg Days",
-    isDecimal: true,
-    activeColor: () => "#F5F1E8",
   },
 ];
 

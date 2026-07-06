@@ -14,33 +14,7 @@ import { TurnCard } from "./TurnCard";
 type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "On Hold" | "Overdue";
 const FILTERS: Filter[] = ["All", "Mine", "Office", "Maintenance", "Ready", "On Hold", "Overdue"];
 
-type SortBy = "stage" | "aging" | "target" | "property";
 type GroupBy = "none" | "property" | "stage";
-
-const SORT_OPTIONS: { value: SortBy; label: string }[] = [
-  { value: "stage", label: "Stage" },
-  { value: "aging", label: "Aging ↓" },
-  { value: "target", label: "Target date" },
-  { value: "property", label: "Property" },
-];
-
-/** Days since a YYYY-MM-DD string, client-side. */
-function daysSince(iso: string): number {
-  const then = new Date(iso).getTime();
-  return Math.max(0, Math.floor((Date.now() - then) / (1000 * 60 * 60 * 24)));
-}
-
-function sortTurns(turns: Turn[], sortBy: SortBy): Turn[] {
-  return [...turns].sort((a, b) => {
-    switch (sortBy) {
-      case "stage":   return a.stage_idx - b.stage_idx;
-      case "aging":   return daysSince(b.vacate_date) - daysSince(a.vacate_date);
-      case "target":  return a.target_date.localeCompare(b.target_date);
-      case "property": return (a.property_name ?? "").localeCompare(b.property_name ?? "");
-      default: return 0;
-    }
-  });
-}
 
 export function Board({
   turns, openCounts, currentUser, profiles, mineIds, meta, stats,
@@ -54,7 +28,8 @@ export function Board({
   stats: DashboardStats;
 }) {
   const [filter, setFilter] = useState<Filter>("All");
-  const [sortBy, setSortBy] = useState<SortBy>("stage");
+  const [propertyFilter, setPropertyFilter] = useState<string | null>(null);
+  const [propDropdownOpen, setPropDropdownOpen] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
   const router = useRouter();
   const mineSet = useMemo(() => new Set(mineIds), [mineIds]);
@@ -74,8 +49,14 @@ export function Board({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }, []);
 
+  const activeBuildings = useMemo(() => {
+    const names = Array.from(new Set(turns.map((t) => t.property_name ?? "Unknown")));
+    return names.sort((a, b) => a.localeCompare(b));
+  }, [turns]);
+
   const visible = useMemo(() => {
-    const filtered = turns.filter((t) => {
+    return turns.filter((t) => {
+      if (propertyFilter && t.property_name !== propertyFilter) return false;
       if (filter === "All") return true;
       if (filter === "Mine") return mineSet.has(t.id);
       if (filter === "On Hold") return t.hold_status != null;
@@ -86,8 +67,7 @@ export function Board({
       if (filter === "Ready") return cat === "ready";
       return true;
     });
-    return sortTurns(filtered, sortBy);
-  }, [turns, filter, sortBy, mineSet, todayStr]);
+  }, [turns, filter, propertyFilter, mineSet, todayStr]);
 
   const onHoldCount = useMemo(() => turns.filter((t) => t.hold_status != null).length, [turns]);
   const overdueCount = useMemo(
@@ -147,20 +127,63 @@ export function Board({
         {/* Dashboard stat tiles */}
         <DashboardHeader stats={stats} onFilterChange={(f) => setFilter(f)} />
 
-        {/* Sort + Group row */}
+        {/* Property filter + Group row */}
         <div style={{ padding: "10px 16px 6px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
-            <span style={{ fontFamily: "var(--font-sans)", fontSize: 11.5, color: "rgba(245,241,232,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Sort</span>
-            <div style={{ display: "flex", gap: 4 }}>
-              {SORT_OPTIONS.map((opt) => {
-                const active = sortBy === opt.value;
-                return (
-                  <button key={opt.value} type="button" onClick={() => setSortBy(opt.value)}
-                    style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${active ? "transparent" : "rgba(245,241,232,0.2)"}`, background: active ? "rgba(245,241,232,0.18)" : "transparent", color: active ? "#F5F1E8" : "rgba(245,241,232,0.6)", fontFamily: "var(--font-sans)", fontWeight: active ? 600 : 400, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
-                  >{opt.label}</button>
-                );
-              })}
-            </div>
+          {/* Property dropdown */}
+          <div style={{ position: "relative", flex: "0 0 auto" }}>
+            <button
+              type="button"
+              onClick={() => setPropDropdownOpen((v) => !v)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "5px 12px", borderRadius: 999,
+                border: `1px solid ${propertyFilter ? "transparent" : "rgba(245,241,232,0.2)"}`,
+                background: propertyFilter ? "rgba(245,241,232,0.18)" : "transparent",
+                color: propertyFilter ? "#F5F1E8" : "rgba(245,241,232,0.7)",
+                fontFamily: "var(--font-sans)", fontWeight: propertyFilter ? 600 : 400, fontSize: 12,
+                cursor: "pointer", whiteSpace: "nowrap",
+              }}
+            >
+              {propertyFilter ?? "All Buildings"}
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+                <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            {propDropdownOpen && (
+              <>
+                <div
+                  onClick={() => setPropDropdownOpen(false)}
+                  style={{ position: "fixed", inset: 0, zIndex: 9 }}
+                />
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 10,
+                  background: "#1D3450", borderRadius: 10, boxShadow: "0 8px 24px rgba(11,27,43,0.35)",
+                  border: "1px solid rgba(245,241,232,0.12)", minWidth: 200, overflow: "hidden",
+                }}>
+                  {[null, ...activeBuildings].map((b) => {
+                    const selected = propertyFilter === b;
+                    return (
+                      <button
+                        key={b ?? "__all__"}
+                        type="button"
+                        onClick={() => { setPropertyFilter(b); setPropDropdownOpen(false); }}
+                        style={{
+                          display: "block", width: "100%", textAlign: "left",
+                          padding: "9px 14px", background: selected ? "rgba(245,241,232,0.12)" : "transparent",
+                          border: "none", color: selected ? "#F5F1E8" : "rgba(245,241,232,0.72)",
+                          fontFamily: "var(--font-sans)", fontWeight: selected ? 600 : 400, fontSize: 13,
+                          cursor: "pointer",
+                        }}
+                        onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "rgba(245,241,232,0.07)"; }}
+                        onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "transparent"; }}
+                      >
+                        {b ?? "All Buildings"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
           <div style={{ width: 1, height: 16, background: "rgba(245,241,232,0.15)", flex: "0 0 auto" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
