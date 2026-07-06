@@ -1,8 +1,9 @@
 "use client";
 
+import { Suspense, useEffect, useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
+import { loadPublicProfilesAction, loginAsUserAction, type PublicProfile } from "./actions";
 
 export default function LoginPage() {
   return (
@@ -18,11 +19,12 @@ function Shell({ children }: { children?: React.ReactNode }) {
       style={{
         display: "flex",
         flexDirection: "column",
-        minHeight: "100dvh",
+        height: "100%",
         background: "#1A2E44",
         padding: "60px 24px 40px",
         maxWidth: 400,
         margin: "0 auto",
+        boxSizing: "border-box",
       }}
     >
       <div style={{ marginBottom: 32 }}>
@@ -39,7 +41,7 @@ function Shell({ children }: { children?: React.ReactNode }) {
           Milestone Turns
         </div>
         <p style={{ fontWeight: 300, fontSize: 14, color: "rgba(245,241,232,0.55)", margin: 0 }}>
-          Enter your email to sign in.
+          Select your name to sign in.
         </p>
       </div>
       {children}
@@ -50,155 +52,95 @@ function Shell({ children }: { children?: React.ReactNode }) {
 function LoginForm() {
   const search = useSearchParams();
   const next = search.get("next") ?? "/";
-  const errorParam = search.get("error");
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"magic" | "password">("magic");
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(
-    errorParam === "auth_failed" ? "Sign-in link expired or invalid. Try again." :
-    errorParam === "missing_code" ? "Something went wrong. Try again." : null
-  );
-  const [pending, setPending] = useState(false);
+  const [profiles, setProfiles] = useState<PublicProfile[]>([]);
+  const [selected, setSelected] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
-  async function submit(e: React.FormEvent) {
+  useEffect(() => {
+    loadPublicProfilesAction().then(setProfiles);
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setPending(true);
+    if (!selected) return;
     setError(null);
 
-    const supabase = getBrowserSupabase();
-
-    if (mode === "password") {
-      const { error: pwErr } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
-        password,
-      });
-
-      setPending(false);
-      if (pwErr) {
-        setError("Incorrect email or password");
-        return;
+    startTransition(async () => {
+      try {
+        const { email, token } = await loginAsUserAction(selected);
+        const supabase = getBrowserSupabase();
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          email,
+          token,
+          type: "email",
+        });
+        if (verifyErr) throw verifyErr;
+        window.location.href = next;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Sign in failed. Try again.");
       }
-      window.location.href = "/";
-      return;
-    }
-
-    const redirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
-        : `/auth/callback`;
-
-    const { error: otpErr } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: { emailRedirectTo: redirectTo },
     });
-
-    setPending(false);
-    if (otpErr) {
-      setError(otpErr.message);
-      return;
-    }
-    setSent(true);
   }
 
-  function toggleMode() {
-    setMode((m) => (m === "magic" ? "password" : "magic"));
-    setError(null);
-  }
-
-  const labelStyle: React.CSSProperties = {
-    display: "block",
-    fontWeight: 500,
-    fontSize: 11,
-    textTransform: "uppercase",
-    letterSpacing: "0.12em",
-    color: "rgba(245,241,232,0.65)",
-    marginBottom: 7,
-  };
-  const inputStyle: React.CSSProperties = {
+  const selectStyle: React.CSSProperties = {
     width: "100%",
     border: "1.5px solid rgba(245,241,232,0.18)",
     borderRadius: 8,
     padding: "13px 14px",
     fontSize: 15,
-    color: "#F5F1E8",
+    color: selected ? "#F5F1E8" : "rgba(245,241,232,0.4)",
     background: "rgba(255,255,255,0.06)",
     outline: "none",
     boxSizing: "border-box",
+    appearance: "none",
+    cursor: "pointer",
   };
-
-  if (sent) {
-    return (
-      <Shell>
-        <div
-          style={{
-            background: "rgba(46,107,94,0.18)",
-            border: "1px solid rgba(91,174,151,0.35)",
-            borderRadius: 10,
-            padding: "20px 18px",
-            color: "#A8D5C5",
-            fontSize: 14.5,
-            lineHeight: 1.55,
-          }}
-        >
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Check your email for a sign-in link ✓</div>
-          We sent a sign-in link to <strong style={{ color: "#F5F1E8" }}>{email}</strong>.
-          <br /><br />
-          Click the link in the email to continue. It expires in 1 hour.
-        </div>
-        <button
-          type="button"
-          onClick={() => setSent(false)}
-          style={{
-            marginTop: 16,
-            background: "transparent",
-            border: "1px solid rgba(245,241,232,0.2)",
-            borderRadius: 8,
-            padding: "11px 14px",
-            color: "rgba(245,241,232,0.6)",
-            fontSize: 13.5,
-            cursor: "pointer",
-            width: "100%",
-          }}
-        >
-          Use a different email
-        </button>
-      </Shell>
-    );
-  }
 
   return (
     <Shell>
-      <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <label>
-          <span style={labelStyle}>Email address</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            autoFocus
-            required
-            placeholder="you@example.com"
-            style={inputStyle}
-          />
+          <span
+            style={{
+              display: "block",
+              fontWeight: 500,
+              fontSize: 11,
+              textTransform: "uppercase",
+              letterSpacing: "0.12em",
+              color: "rgba(245,241,232,0.65)",
+              marginBottom: 7,
+            }}
+          >
+            Who are you?
+          </span>
+          <div style={{ position: "relative" }}>
+            <select
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="" disabled style={{ background: "#1A2E44", color: "rgba(245,241,232,0.4)" }}>
+                Select your name…
+              </option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id} style={{ background: "#1A2E44", color: "#F5F1E8" }}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {/* chevron */}
+            <svg
+              width="14" height="14"
+              viewBox="0 0 16 16"
+              fill="rgba(245,241,232,0.5)"
+              style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
+            >
+              <path d="M4 6l4 4 4-4" stroke="rgba(245,241,232,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+            </svg>
+          </div>
         </label>
-
-        {mode === "password" && (
-          <label>
-            <span style={labelStyle}>Password</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-              placeholder="••••••••"
-              style={inputStyle}
-            />
-          </label>
-        )}
 
         {error && (
           <div
@@ -217,41 +159,22 @@ function LoginForm() {
 
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || !selected}
           style={{
             width: "100%",
             padding: "15px",
             borderRadius: 8,
             border: "none",
-            cursor: pending ? "wait" : "pointer",
+            cursor: pending || !selected ? "default" : "pointer",
             background: "#2E6B5E",
             color: "#fff",
             fontWeight: 600,
             fontSize: 15,
-            opacity: pending ? 0.75 : 1,
+            opacity: pending || !selected ? 0.5 : 1,
             transition: "opacity 0.15s",
           }}
         >
-          {pending
-            ? mode === "password" ? "Signing in…" : "Sending…"
-            : mode === "password" ? "Sign in" : "Send sign-in link"}
-        </button>
-
-        <button
-          type="button"
-          onClick={toggleMode}
-          style={{
-            background: "transparent",
-            border: "none",
-            padding: 0,
-            color: "rgba(245,241,232,0.55)",
-            fontSize: 13,
-            cursor: "pointer",
-            textDecoration: "underline",
-            alignSelf: "center",
-          }}
-        >
-          {mode === "password" ? "Send me a sign-in link instead" : "Sign in with password instead"}
+          {pending ? "Signing in…" : "Sign in"}
         </button>
       </form>
     </Shell>
