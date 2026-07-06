@@ -967,27 +967,12 @@ function TaskRow({
         )}
       </div>
 
-      {interactivity === "current" && (
-        <TaskNotes
-          turnId={turnId}
-          stageIdx={stageIdx}
-          taskName={task.name}
-          initialNotes={notes}
-        />
-      )}
-      {interactivity !== "current" && notes.length > 0 && (
-        <div
-          style={{
-            marginTop: 8,
-            paddingTop: 8,
-            borderTop: "1px dashed rgba(11,27,43,0.08)",
-            fontSize: 12,
-            color: "rgba(11,27,43,0.55)",
-          }}
-        >
-          {notes.length} note{notes.length !== 1 ? "s" : ""}
-        </div>
-      )}
+      <TaskNotes
+        turnId={turnId}
+        stageIdx={stageIdx}
+        taskName={task.name}
+        initialNotes={notes}
+      />
     </div>
   );
 }
