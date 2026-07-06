@@ -137,7 +137,7 @@ export async function loadTaskNotes(turnId: string, stageIdx?: number): Promise<
   const supabase = await getServerSupabase();
   let q = supabase
     .from("task_notes")
-    .select("id, turn_id, stage_idx, task_name, author_id, content, created_at, profiles(name)")
+    .select("id, turn_id, stage_idx, task_name, author_id, content, photo_url, created_at, profiles(name)")
     .eq("turn_id", turnId);
   if (stageIdx !== undefined) q = q.eq("stage_idx", stageIdx);
   const { data, error } = await q.order("created_at", { ascending: true });
@@ -145,13 +145,13 @@ export async function loadTaskNotes(turnId: string, stageIdx?: number): Promise<
   return ((data ?? []) as unknown[]).map((row) => {
     const r = row as {
       id: string; turn_id: string; stage_idx: number; task_name: string;
-      author_id: string; content: string; created_at: string;
+      author_id: string; content: string | null; photo_url: string | null; created_at: string;
       profiles: { name: string } | null;
     };
     return {
       id: r.id, turn_id: r.turn_id, stage_idx: r.stage_idx, task_name: r.task_name,
       author_id: r.author_id, author_name: r.profiles?.name ?? "Unknown",
-      content: r.content, created_at: r.created_at,
+      content: r.content, photo_url: r.photo_url, created_at: r.created_at,
     } satisfies TaskNote;
   });
 }

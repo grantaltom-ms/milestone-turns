@@ -234,13 +234,16 @@ export async function bulkCreateTurnsAction(
   return { created, skipped, errors };
 }
 
-/** Add a note to a task. author_id comes from the current session. */
+/** Add a note (text and/or photo) to a task. author_id comes from the current session. */
 export async function addTaskNoteAction(input: {
   turn_id: string;
   stage_idx: number;
   task_name: string;
-  content: string;
+  content?: string;
+  photo_url?: string;
 }): Promise<void> {
+  if (!input.content?.trim() && !input.photo_url) throw new Error("Note must have text or a photo");
+
   const supabase = await getServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
@@ -250,7 +253,8 @@ export async function addTaskNoteAction(input: {
     stage_idx: input.stage_idx,
     task_name: input.task_name,
     author_id: user.id,
-    content: input.content.trim(),
+    content: input.content?.trim() ?? null,
+    photo_url: input.photo_url ?? null,
   });
   if (error) throw error;
 

@@ -56,7 +56,8 @@ export type TaskNote = {
   task_name: string;
   author_id: string;
   author_name: string;
-  content: string;
+  content: string | null;
+  photo_url: string | null;
   created_at: string;
 };
 
