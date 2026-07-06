@@ -84,7 +84,7 @@ export function AdminBoard({ stages: initial }: { stages: AdminStage[] }) {
   }
 
   return (
-    <div style={{ minHeight: "100%", background: "var(--color-cream)" }}>
+    <div style={{ height: "100%", overflowY: "auto", background: "var(--color-cream)" }}>
       {/* Header */}
       <div style={{ background: "#1A2E44", padding: "50px 20px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
