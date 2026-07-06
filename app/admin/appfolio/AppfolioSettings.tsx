@@ -149,7 +149,7 @@ function CreateTurnRow({
 
   return (
     <tr style={{ background: "#f0f4f8" }}>
-      <td colSpan={10} style={{ padding: "10px 16px" }}>
+      <td colSpan={4} style={{ padding: "10px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <span style={{ fontFamily: "var(--font-sans)", fontSize: 12.5, fontWeight: 600, color: "#1A2E44" }}>
             Create turn for {unit.property_name} · {unit.unit}
@@ -275,16 +275,16 @@ function VacantUnitsSection({ syncedPropertyIds }: { syncedPropertyIds: number[]
               ? ` · ${units.filter((u) => !u.has_active_turn).length} without a turn`
               : " · all have active turns"}
           </p>
-          <div style={{ overflowX: "auto" }}>
+          <div>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
               <thead>
                 <tr style={{ background: "#f0f4f8" }}>
-                  {["Building", "Unit", "Status", "Move Out", "Market Rent", "Bd/Ba", "Sq Ft", "Rent Ready", "Turn"].map((h) => (
-                    <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "#555", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #ddd", whiteSpace: "nowrap" }}>
+                  <th style={{ padding: "7px 12px", borderBottom: "1px solid #ddd", width: 110 }} />
+                  {["Unit", "Status", "Turn"].map((h) => (
+                    <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "#555", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #ddd" }}>
                       {h}
                     </th>
                   ))}
-                  <th style={{ padding: "7px 12px", borderBottom: "1px solid #ddd" }} />
                 </tr>
               </thead>
               <tbody>
@@ -294,34 +294,6 @@ function VacantUnitsSection({ syncedPropertyIds }: { syncedPropertyIds: number[]
                       key={unit.unit_id}
                       style={{ borderBottom: "1px solid #f0f0f0", background: creatingFor === unit.unit_id ? "#f0f4f8" : "white" }}
                     >
-                      <td style={{ padding: "7px 12px", fontFamily: "var(--font-sans)", color: "#1A2E44", whiteSpace: "nowrap" }}>{unit.property_name}</td>
-                      <td style={{ padding: "7px 12px", fontFamily: "var(--font-mono, monospace)", fontSize: 12, color: "#1A2E44" }}>{unit.unit}</td>
-                      <td style={{ padding: "7px 12px" }}>
-                        <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: statusColor(unit.status), background: `${statusColor(unit.status)}15`, padding: "2px 7px", borderRadius: 10, whiteSpace: "nowrap" }}>
-                          {unit.status}
-                        </span>
-                      </td>
-                      <td style={{ padding: "7px 12px", fontFamily: "var(--font-sans)", color: "#444", whiteSpace: "nowrap" }}>{unit.last_move_out ?? "—"}</td>
-                      <td style={{ padding: "7px 12px", fontFamily: "var(--font-sans)", color: "#444" }}>{formatRent(unit.market_rent)}</td>
-                      <td style={{ padding: "7px 12px", fontFamily: "var(--font-sans)", color: "#444" }}>{unit.bd_ba ?? "—"}</td>
-                      <td style={{ padding: "7px 12px", fontFamily: "var(--font-sans)", color: "#444" }}>{unit.sqft ?? "—"}</td>
-                      <td style={{ padding: "7px 12px" }}>
-                        {unit.rent_ready === "Yes" && (
-                          <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "#16a34a", fontWeight: 600 }}>Yes</span>
-                        )}
-                        {unit.rent_ready !== "Yes" && (
-                          <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "#888" }}>{unit.rent_ready ?? "—"}</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "7px 12px" }}>
-                        {unit.has_active_turn ? (
-                          <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "#16a34a" }}>
-                            Active · Stage {unit.active_turn_stage ?? "?"}
-                          </span>
-                        ) : (
-                          <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "#888" }}>No turn</span>
-                        )}
-                      </td>
                       <td style={{ padding: "7px 12px" }}>
                         {!unit.has_active_turn && creatingFor !== unit.unit_id && (
                           <button
@@ -333,6 +305,24 @@ function VacantUnitsSection({ syncedPropertyIds }: { syncedPropertyIds: number[]
                           >
                             + Create Turn
                           </button>
+                        )}
+                      </td>
+                      <td style={{ padding: "7px 12px" }}>
+                        <div style={{ fontFamily: "var(--font-sans)", fontSize: 13, fontWeight: 600, color: "#1A2E44", lineHeight: 1.2 }}>{unit.property_name}</div>
+                        <div style={{ fontFamily: "var(--font-sans)", fontSize: 11.5, color: "#666", marginTop: 1 }}>Unit {unit.unit}</div>
+                      </td>
+                      <td style={{ padding: "7px 12px" }}>
+                        <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: statusColor(unit.status), background: `${statusColor(unit.status)}15`, padding: "2px 7px", borderRadius: 10, whiteSpace: "nowrap" }}>
+                          {unit.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: "7px 12px" }}>
+                        {unit.has_active_turn ? (
+                          <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "#16a34a" }}>
+                            Active · Stage {unit.active_turn_stage ?? "?"}
+                          </span>
+                        ) : (
+                          <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, color: "#888" }}>No turn</span>
                         )}
                       </td>
                     </tr>
