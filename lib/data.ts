@@ -220,6 +220,76 @@ function daysSinceDate(iso: string): number {
   return Math.max(0, Math.floor((now - then) / (1000 * 60 * 60 * 24)));
 }
 
+// ─── AppFolio sync settings ───────────────────────────────────────────────────
+
+export type AppfolioSyncSetting = {
+  id: number;
+  property_id: number;
+  property_name: string;
+  appfolio_id: string | null;
+  sync_enabled: boolean;
+  default_assignee: string;
+};
+
+/** Admin loader: per-property AppFolio sync settings joined with property names. */
+export async function loadAppfolioSyncSettings(): Promise<AppfolioSyncSetting[]> {
+  const supabase = await getServerSupabase();
+  // Load all properties with appfolio_id, left-join sync settings
+  const { data: props, error: pErr } = await supabase
+    .from("properties")
+    .select("id, name, appfolio_id")
+    .eq("is_group", false)
+    .not("appfolio_id", "is", null)
+    .order("name", { ascending: true });
+  if (pErr) throw pErr;
+
+  const { data: settings, error: sErr } = await supabase
+    .from("appfolio_sync_settings")
+    .select("id, property_id, sync_enabled, default_assignee");
+  if (sErr) throw sErr;
+
+  const settingsByProp = new Map<number, { id: number; sync_enabled: boolean; default_assignee: string }>();
+  for (const s of settings ?? []) {
+    settingsByProp.set(s.property_id, { id: s.id, sync_enabled: s.sync_enabled, default_assignee: s.default_assignee });
+  }
+
+  return (props ?? []).map((p) => {
+    const s = settingsByProp.get(p.id);
+    return {
+      id: s?.id ?? 0,
+      property_id: p.id,
+      property_name: p.name,
+      appfolio_id: p.appfolio_id,
+      sync_enabled: s?.sync_enabled ?? false,
+      default_assignee: s?.default_assignee ?? "??",
+    };
+  });
+}
+
+/** Load only properties enabled for AppFolio sync, with their appfolio_id. */
+export async function loadEnabledSyncProperties(): Promise<Array<{ property_id: number; appfolio_id: string; default_assignee: string }>> {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("appfolio_sync_settings")
+    .select("property_id, default_assignee, properties(appfolio_id)")
+    .eq("sync_enabled", true);
+  if (error) throw error;
+  type EnabledRow = {
+    property_id: number;
+    default_assignee: string;
+    properties: { appfolio_id: string | null } | null;
+  };
+  return ((data ?? []) as unknown as EnabledRow[])
+    .filter((r) => r.properties?.appfolio_id != null)
+    .map((r) => ({
+      property_id: r.property_id,
+      appfolio_id: r.properties!.appfolio_id!,
+      default_assignee: r.default_assignee,
+    }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /** Compute portfolio-wide dashboard stats from a loaded turns array.
  *  Pure function — no DB calls. */
 export function computeDashboardStats(turns: Turn[]): DashboardStats {

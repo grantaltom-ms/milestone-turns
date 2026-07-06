@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/appfolio/sync",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}

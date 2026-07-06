@@ -76,7 +76,8 @@ export type TurnEventType =
   | "phase_skipped"
   | "phase_unskipped"
   | "task_added"
-  | "task_removed";
+  | "task_removed"
+  | "created_from_appfolio";
 
 export type TurnEvent = {
   id: string;
