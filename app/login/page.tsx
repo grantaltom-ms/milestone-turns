@@ -69,11 +69,10 @@ function LoginForm() {
 
     startTransition(async () => {
       try {
-        const { email, token } = await loginAsUserAction(selected);
+        const { token_hash } = await loginAsUserAction(selected);
         const supabase = getBrowserSupabase();
         const { error: verifyErr } = await supabase.auth.verifyOtp({
-          email,
-          token,
+          token_hash,
           type: "email",
         });
         if (verifyErr) throw verifyErr;

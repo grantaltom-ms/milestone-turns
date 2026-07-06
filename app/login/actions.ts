@@ -22,7 +22,7 @@ export async function loadPublicProfilesAction(): Promise<PublicProfile[]> {
  *  Returns { email, token } — the client calls verifyOtp to establish a session. */
 export async function loginAsUserAction(
   profileId: string,
-): Promise<{ email: string; token: string }> {
+): Promise<{ token_hash: string }> {
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -47,5 +47,5 @@ export async function loginAsUserAction(
 
   if (error) throw new Error(error.message);
 
-  return { email, token: data.properties.hashed_token };
+  return { token_hash: data.properties.hashed_token };
 }
