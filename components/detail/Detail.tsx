@@ -11,7 +11,6 @@ import {
   handoffToMaintenanceAction,
   putTurnOnHoldAction,
   resumeTurnAction,
-  setStageAssigneeAction,
   setTaskAssigneeAction,
   toggleTaskAction,
   togglePhaseSkipAction,
@@ -57,11 +56,7 @@ export function Detail({
   const [tasks, setTasks] = useState<Task[]>(turn.tasks);
   // Skipped phases — optimistic local mirror of turn.skipped_phases.
   const [skipped, setSkipped] = useState<Set<number>>(() => new Set(turn.skipped_phases ?? []));
-  const [picker, setPicker] = useState<
-    | { kind: "task"; taskId: string }
-    | { kind: "stage"; stageIdx: number }
-    | null
-  >(null);
+  const [picker, setPicker] = useState<{ kind: "task"; taskId: string } | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
@@ -149,11 +144,9 @@ export function Detail({
     STAGE_TEAM[turn.stage_idx + 1] === "maintenance";
 
   const pickerStageIdx =
-    picker?.kind === "stage"
-      ? picker.stageIdx
-      : picker?.kind === "task"
-        ? tasks.find((t) => t.id === picker.taskId)?.stage_idx ?? turn.stage_idx
-        : turn.stage_idx;
+    picker?.kind === "task"
+      ? tasks.find((t) => t.id === picker.taskId)?.stage_idx ?? turn.stage_idx
+      : turn.stage_idx;
   const pickerStageTeam = STAGE_TEAM[pickerStageIdx];
   const pickerMembers = useMemo<ProfileMember[]>(
     () => membersOnTeam(pickerStageTeam, profiles),
@@ -207,20 +200,7 @@ export function Detail({
     startTransition(() => { void setTaskAssigneeAction(taskId, newAssignee); });
   }
 
-  function onPickStageAssignee(stageIdx: number, newAssignee: string) {
-    setTasks((prev) => prev.map((t) => (t.stage_idx === stageIdx ? { ...t, assignee: newAssignee } : t)));
-    setPicker(null);
-    startTransition(() => {
-      if (stageIdx === turn.stage_idx) {
-        void setStageAssigneeAction(turn.id, newAssignee);
-      } else {
-        const targets = tasks.filter((t) => t.stage_idx === stageIdx);
-        for (const t of targets) void setTaskAssigneeAction(t.id, newAssignee);
-      }
-    });
-  }
-
-  const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office" : "Maintenance";
+const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office" : "Maintenance";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -433,7 +413,6 @@ export function Detail({
             onToggle={onToggle}
             onToggleSkip={(skip) => onToggleSkip(i, skip)}
             onReassignTask={(taskId) => setPicker({ kind: "task", taskId })}
-            onReassignStage={(stageIdx) => setPicker({ kind: "stage", stageIdx })}
             onAddTask={(name) => {
               startTransition(() => { void addTaskAction(turn.id, i, name); });
             }}
@@ -587,22 +566,10 @@ export function Detail({
         <AssigneeSheet
           members={pickerMembers}
           teamLabel={
-            picker.kind === "stage"
-              ? `Assign all ${STAGES[picker.stageIdx].name} tasks`
-              : pickerStageTeam === "office"
-                ? "Office team"
-                : "Maintenance team"
+            pickerStageTeam === "office" ? "Office team" : "Maintenance team"
           }
-          current={
-            picker.kind === "stage"
-              ? tasksByStage.get(picker.stageIdx)?.[0]?.assignee
-              : tasks.find((t) => t.id === picker.taskId)?.assignee
-          }
-          onPick={(initials) =>
-            picker.kind === "stage"
-              ? onPickStageAssignee(picker.stageIdx, initials)
-              : onPickTaskAssignee(picker.taskId, initials)
-          }
+          current={tasks.find((t) => t.id === picker.taskId)?.assignee}
+          onPick={(initials) => onPickTaskAssignee(picker.taskId, initials)}
           onClose={() => setPicker(null)}
         />
       )}
@@ -624,7 +591,6 @@ function StageSection({
   onToggle,
   onToggleSkip,
   onReassignTask,
-  onReassignStage,
   onAddTask,
   onDeleteTask,
 }: {
@@ -641,7 +607,6 @@ function StageSection({
   onToggle: (t: Task) => void;
   onToggleSkip: (skip: boolean) => void;
   onReassignTask: (taskId: string) => void;
-  onReassignStage: (stageIdx: number) => void;
   onAddTask: (name: string) => void;
   onDeleteTask: (taskId: string) => void;
 }) {
@@ -673,7 +638,6 @@ function StageSection({
         ? "rgba(11,27,43,0.55)"
         : "#2E6B5E";
 
-  const stageAssignee = tasks[0]?.assignee;
 
   return (
     <div style={{ marginBottom: 14, opacity: skipped ? 0.72 : 1 }}>
@@ -778,47 +742,6 @@ function StageSection({
           {tasks.length === 0 && (
             <div style={{ fontWeight: 400, fontSize: 12.5, color: "rgba(11,27,43,0.4)", fontStyle: "italic", padding: "8px 4px" }}>
               {skipped ? "Phase skipped — these tasks won't block advancing." : "No tasks for this stage."}
-            </div>
-          )}
-          {tasks.length > 0 && canReassign && stageAssignee && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 12px",
-                background: "rgba(255,255,255,0.6)",
-                borderRadius: 8,
-                border: "1px solid rgba(11,27,43,0.05)",
-              }}
-            >
-              <span style={{ flex: 1, fontWeight: 500, fontSize: 12, color: "rgba(11,27,43,0.55)" }}>
-                Stage assigned to
-              </span>
-              <button
-                type="button"
-                onClick={() => onReassignStage(stageIdx)}
-                title="Change stage assignee"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <Avatar
-                  initials={stageAssignee}
-                  size={22}
-                  color={avatarColorFromProfiles(stageAssignee, profiles)}
-                />
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: "#0B1B2B" }}>
-                  {profiles.find((p) => p.initials === stageAssignee)?.name ?? stageAssignee}
-                </span>
-                <span style={{ fontSize: 11, color: "rgba(11,27,43,0.35)" }}>›</span>
-              </button>
             </div>
           )}
 
