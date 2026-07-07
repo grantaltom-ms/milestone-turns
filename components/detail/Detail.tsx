@@ -65,7 +65,12 @@ export function Detail({
   const [revertOpen, setRevertOpen] = useState(false);
   const [, startTransition] = useTransition();
 
-  const isLead = currentUser.role === "office_lead" || currentUser.role === "maintenance_lead";
+  // Leads and admins can send a turn back a stage. (Without admin here the
+  // control is invisible to everyone when no lead-role users exist.)
+  const isLead =
+    currentUser.role === "office_lead" ||
+    currentUser.role === "maintenance_lead" ||
+    currentUser.role === "admin";
 
   const isHeld = turn.hold_status != null;
   const isBlocked = turn.hold_status === "blocked";
@@ -548,7 +553,12 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
           profiles={profiles}
           onConfirm={(assignee) => {
             setHandoffOpen(false);
-            startTransition(() => { void handoffToMaintenanceAction(turn.id, assignee); });
+            // Await the action, then refresh so the screen reflects the new
+            // stage/assignee instead of staying on the stale pre-handoff view.
+            startTransition(async () => {
+              await handoffToMaintenanceAction(turn.id, assignee);
+              router.refresh();
+            });
           }}
           onClose={() => setHandoffOpen(false)}
         />
