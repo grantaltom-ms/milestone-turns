@@ -213,7 +213,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Header */}
       <div style={{ background: "#1A2E44", padding: "50px 20px 0", flexShrink: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, rowGap: 8, flexWrap: "wrap", marginBottom: 10 }}>
           <Link
             href="/"
             style={{
@@ -229,7 +229,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
           >
             ← {t("detail.back")}
           </Link>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, rowGap: 8, flexWrap: "wrap" }}>
             {/* Hold / Blocked toggle button */}
             {!isLast && (
               <button

@@ -18,6 +18,9 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: "Unit Turns — Milestone Properties",
   description: "Track vacant apartment units through the make-ready pipeline.",
+  // The app renders its own translations; stop the browser (Chrome Translate)
+  // from re-translating a Spanish page into a broken English/Spanish hybrid.
+  other: { google: "notranslate" },
 };
 
 export const viewport: Viewport = {
@@ -35,7 +38,7 @@ export default async function RootLayout({
   const profile = await getCurrentProfile();
   const lang = profile?.language ?? "en";
   return (
-    <html lang={lang} className={`${dmSans.variable} ${playfair.variable}`}>
+    <html lang={lang} translate="no" className={`notranslate ${dmSans.variable} ${playfair.variable}`}>
       <body>
         <div id="app-frame">{children}</div>
       </body>
