@@ -23,11 +23,15 @@ import type { Team } from "@/lib/stages";
 import {
   addDefaultTaskAction,
   deleteDefaultTaskAction,
+  deleteTemplateAction,
+  loadTemplateAction,
   reorderStagesAction,
   reorderTasksInStageAction,
+  saveTemplateAction,
 } from "./actions";
 
 type Task = { id: number; stage_idx: number; name: string; sort_order: number };
+type TemplateMeta = { id: number; name: string; itemCount: number };
 
 export type AdminStage = {
   stageIdx: number;
@@ -36,6 +40,7 @@ export type AdminStage = {
   team: Team;
   displayOrder: number;
   tasks: Task[];
+  templates: TemplateMeta[];
 };
 
 // Shared drag-handle glyph (six dots).
@@ -61,6 +66,12 @@ export function AdminBoard({ stages: initial }: { stages: AdminStage[] }) {
   function patchStage(stageIdx: number, tasks: Task[]) {
     setStages((prev) =>
       prev.map((s) => (s.stageIdx === stageIdx ? { ...s, tasks } : s)),
+    );
+  }
+
+  function patchStageTemplates(stageIdx: number, templates: TemplateMeta[]) {
+    setStages((prev) =>
+      prev.map((s) => (s.stageIdx === stageIdx ? { ...s, templates } : s)),
     );
   }
 
@@ -109,7 +120,8 @@ export function AdminBoard({ stages: initial }: { stages: AdminStage[] }) {
         <p style={{ fontFamily: "var(--font-sans)", fontSize: 12.5, color: "rgba(245,241,232,0.55)", marginTop: 10, maxWidth: 520, lineHeight: 1.5 }}>
           Drag phases by the handle to set their display order here. Drag tasks to
           reorder them within a phase. Task changes seed the default checklist new
-          turns start with.
+          turns start with. Save a phase&apos;s tasks as a template, or load one to
+          replace that phase&apos;s defaults.
         </p>
       </div>
 
@@ -119,7 +131,12 @@ export function AdminBoard({ stages: initial }: { stages: AdminStage[] }) {
           <SortableContext items={stages.map((s) => s.stageIdx)} strategy={verticalListSortingStrategy}>
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {stages.map((stage) => (
-                <PhaseCard key={stage.stageIdx} stage={stage} onTasksChange={(t) => patchStage(stage.stageIdx, t)} />
+                <PhaseCard
+                  key={stage.stageIdx}
+                  stage={stage}
+                  onTasksChange={(t) => patchStage(stage.stageIdx, t)}
+                  onTemplatesChange={(t) => patchStageTemplates(stage.stageIdx, t)}
+                />
               ))}
             </div>
           </SortableContext>
@@ -132,9 +149,11 @@ export function AdminBoard({ stages: initial }: { stages: AdminStage[] }) {
 function PhaseCard({
   stage,
   onTasksChange,
+  onTemplatesChange,
 }: {
   stage: AdminStage;
   onTasksChange: (tasks: Task[]) => void;
+  onTemplatesChange: (templates: TemplateMeta[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -278,7 +297,135 @@ function PhaseCard({
               + Add task
             </button>
           )}
+
+          <TemplatesSection
+            stage={stage}
+            onTasksChange={onTasksChange}
+            onTemplatesChange={onTemplatesChange}
+          />
         </div>
+      )}
+    </div>
+  );
+}
+
+function TemplatesSection({
+  stage,
+  onTasksChange,
+  onTemplatesChange,
+}: {
+  stage: AdminStage;
+  onTasksChange: (tasks: Task[]) => void;
+  onTemplatesChange: (templates: TemplateMeta[]) => void;
+}) {
+  const [selectedId, setSelectedId] = useState<number | "">("");
+  const [saving, setSaving] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const templates = stage.templates;
+
+  function handleLoad() {
+    if (selectedId === "") return;
+    const tpl = templates.find((t) => t.id === selectedId);
+    const label = tpl ? `“${tpl.name}”` : "this template";
+    if (!window.confirm(`Load ${label} into ${stage.name}? This replaces the phase's current default tasks.`)) return;
+    startTransition(async () => {
+      try {
+        const rows = await loadTemplateAction(stage.stageIdx, selectedId);
+        onTasksChange(rows);
+      } catch {
+        // leave tasks unchanged on failure
+      }
+    });
+  }
+
+  function handleSave() {
+    const name = draftName.trim();
+    if (!name) return;
+    setDraftName("");
+    setSaving(false);
+    startTransition(async () => {
+      try {
+        const tpl = await saveTemplateAction(stage.stageIdx, name);
+        const meta: TemplateMeta = { id: tpl.id, name: tpl.name, itemCount: tpl.items.length };
+        // Upsert by id (overwrite returns the existing id).
+        const next = templates.some((t) => t.id === meta.id)
+          ? templates.map((t) => (t.id === meta.id ? meta : t))
+          : [...templates, meta].sort((a, b) => a.name.localeCompare(b.name));
+        onTemplatesChange(next);
+        setSelectedId(meta.id);
+      } catch {
+        // leave templates unchanged on failure
+      }
+    });
+  }
+
+  function handleDelete() {
+    if (selectedId === "") return;
+    const tpl = templates.find((t) => t.id === selectedId);
+    if (!window.confirm(`Delete template ${tpl ? `“${tpl.name}”` : ""}? This does not change the phase's current tasks.`)) return;
+    const id = selectedId;
+    const next = templates.filter((t) => t.id !== id);
+    onTemplatesChange(next); // optimistic
+    setSelectedId("");
+    startTransition(async () => {
+      try {
+        await deleteTemplateAction(id);
+      } catch {
+        onTemplatesChange(templates); // revert
+      }
+    });
+  }
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--color-fog)" }}>
+      <div style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "var(--color-slate)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8, padding: "0 4px" }}>
+        Templates
+      </div>
+
+      <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "0 4px", flexWrap: "wrap" }}>
+        <select
+          value={selectedId === "" ? "" : String(selectedId)}
+          onChange={(e) => setSelectedId(e.target.value === "" ? "" : Number(e.target.value))}
+          disabled={templates.length === 0 || pending}
+          style={{ flex: "1 1 160px", fontFamily: "var(--font-sans)", fontSize: 13, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--color-fog)", background: "#fff", color: "var(--color-ink)", cursor: templates.length === 0 ? "default" : "pointer" }}
+        >
+          <option value="">{templates.length === 0 ? "No templates saved" : "Select a template…"}</option>
+          {templates.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name} ({t.itemCount})
+            </option>
+          ))}
+        </select>
+        <button type="button" onClick={handleLoad} disabled={selectedId === "" || pending} style={selectedId === "" || pending ? btnDisabled : btnPrimary}>
+          Load
+        </button>
+        <button type="button" onClick={handleDelete} disabled={selectedId === "" || pending} style={selectedId === "" || pending ? btnDisabled : btnGhost} aria-label="Delete selected template">
+          Delete
+        </button>
+      </div>
+
+      {saving ? (
+        <div style={{ display: "flex", gap: 6, marginTop: 8, padding: "0 4px" }}>
+          <input
+            autoFocus
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSave();
+              if (e.key === "Escape") { setSaving(false); setDraftName(""); }
+            }}
+            placeholder="Template name…"
+            style={{ flex: 1, fontFamily: "var(--font-sans)", fontSize: 13.5, padding: "8px 10px", borderRadius: 8, border: "1px solid var(--color-fog)", outline: "none" }}
+          />
+          <button type="button" onClick={handleSave} style={btnPrimary}>Save</button>
+          <button type="button" onClick={() => { setSaving(false); setDraftName(""); }} style={btnGhost}>Cancel</button>
+        </div>
+      ) : (
+        <button type="button" onClick={() => setSaving(true)} disabled={pending} style={addBtn}>
+          + Save current tasks as template
+        </button>
       )}
     </div>
   );
@@ -333,6 +480,10 @@ const btnPrimary: React.CSSProperties = {
 const btnGhost: React.CSSProperties = {
   fontFamily: "var(--font-sans)", fontSize: 13, padding: "8px 12px",
   borderRadius: 8, border: "1px solid var(--color-fog)", background: "#fff", color: "var(--color-slate)", cursor: "pointer",
+};
+const btnDisabled: React.CSSProperties = {
+  fontFamily: "var(--font-sans)", fontSize: 13, padding: "8px 12px",
+  borderRadius: 8, border: "1px solid var(--color-fog)", background: "#fff", color: "var(--color-slate-light)", cursor: "default",
 };
 const addBtn: React.CSSProperties = {
   fontFamily: "var(--font-sans)", fontSize: 13, fontWeight: 500, marginTop: 6, padding: "8px 10px",
