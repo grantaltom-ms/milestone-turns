@@ -298,6 +298,15 @@ export async function signOutAction(): Promise<void> {
   redirect("/login");
 }
 
+/** Set the signed-in user's preferred UI language ('en' | 'es'). */
+export async function setLanguageAction(language: "en" | "es"): Promise<void> {
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("profiles").update({ language }).eq("id", user.id);
+  revalidatePath("/", "layout");
+}
+
 export async function updateTurnAction(turnId: string, patch: {
   unit?: string;
   vacate_date?: string;

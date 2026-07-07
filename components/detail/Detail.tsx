@@ -36,6 +36,7 @@ import {
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import type { Profile, Task, TaskNote, TurnEvent, TurnWithTasks } from "@/lib/supabase/types";
 import { computeTurnMeta } from "@/lib/turn-meta";
+import { useT } from "@/lib/i18n-context";
 
 type Interactivity = "past" | "current" | "future";
 
@@ -52,6 +53,7 @@ export function Detail({
   initialNotes: TaskNote[];
   initialEvents: TurnEvent[];
 }) {
+  const { t, tp, stage } = useT();
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(turn.tasks);
   // Skipped phases — optimistic local mirror of turn.skipped_phases.
@@ -68,7 +70,7 @@ export function Detail({
   const isHeld = turn.hold_status != null;
   const isBlocked = turn.hold_status === "blocked";
   const holdColor = isBlocked ? "#8B4A2F" : "#C8922A";
-  const holdLabel = isBlocked ? "Blocked" : "On Hold";
+  const holdLabel = isBlocked ? t("status.blocked") : t("status.onHold");
 
   useEffect(() => { setTasks(turn.tasks); }, [turn.tasks]);
   useEffect(() => { setSkipped(new Set(turn.skipped_phases ?? [])); }, [turn.skipped_phases]);
@@ -200,7 +202,7 @@ export function Detail({
     startTransition(() => { void setTaskAssigneeAction(taskId, newAssignee); });
   }
 
-const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office" : "Maintenance";
+const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.office") : t("team.maintenance");
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -220,7 +222,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
               gap: 5,
             }}
           >
-            ← Back
+            ← {t("detail.back")}
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {/* Hold / Blocked toggle button */}
@@ -228,8 +230,8 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
               <button
                 type="button"
                 onClick={() => setHoldOpen(true)}
-                aria-label={isHeld ? "Update hold status" : "Put on hold"}
-                title={isHeld ? `${holdLabel} — tap to update` : "Put on hold or block"}
+                aria-label={isHeld ? t("detail.updateHoldAria") : t("detail.putOnHoldAria")}
+                title={isHeld ? t("detail.updateHoldTitle", { status: holdLabel }) : t("detail.putOnHoldTitle")}
                 style={{
                   padding: "5px 11px",
                   borderRadius: 999,
@@ -247,7 +249,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
                 }}
               >
                 {isHeld ? (isBlocked ? "🚫" : "⏸") : "⏸"}
-                {isHeld ? holdLabel : "Hold"}
+                {isHeld ? holdLabel : t("detail.hold")}
               </button>
             )}
             {/* Send-back button — leads only, hidden at stage 0 and last stage */}
@@ -255,8 +257,8 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
               <button
                 type="button"
                 onClick={() => setRevertOpen(true)}
-                aria-label="Send back a stage"
-                title="Send back to previous stage"
+                aria-label={t("detail.sendBackAria")}
+                title={t("detail.sendBackTitle")}
                 style={{
                   padding: "5px 10px",
                   borderRadius: 999,
@@ -273,13 +275,13 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
                   whiteSpace: "nowrap",
                 }}
               >
-                ↩ Back
+                ↩ {t("detail.revertBack")}
               </button>
             )}
             <button
               type="button"
               onClick={() => setEditOpen(true)}
-              aria-label="Edit turn"
+              aria-label={t("detail.editTurn")}
               style={{
                 width: 32,
                 height: 32,
@@ -308,8 +310,8 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
             </div>
             <div style={{ display: "flex", gap: 16, marginTop: 7, alignItems: "flex-end", flexWrap: "wrap" }}>
               {[
-                ["Vacated", formatDate(turn.vacate_date)],
-                ["Target", formatDate(turn.target_date)],
+                [t("detail.vacated"), formatDate(turn.vacate_date)],
+                [t("detail.target"), formatDate(turn.target_date)],
               ].map(([label, value]) => (
                 <div key={label}>
                   <div style={{ fontWeight: 500, fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(245,241,232,0.48)" }}>
@@ -334,7 +336,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {meta.daysInStage}d in {STAGES[turn.stage_idx].name}
+                    {t("card.daysInStage", { n: meta.daysInStage, stage: stage(turn.stage_idx) })}
                   </span>
                 ) : null;
               })()}
@@ -344,7 +346,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
         </div>
         <SegBar stageIdx={turn.stage_idx} dark />
         <div style={{ fontWeight: 500, fontSize: 11.5, color: "rgba(245,241,232,0.5)", marginTop: 7, paddingBottom: 16, letterSpacing: "0.03em" }}>
-          Stage {turn.stage_idx + 1} of {STAGES.length} — {STAGES[turn.stage_idx].name} ({currentStageTeamLabel})
+          {t("detail.stageOf", { i: turn.stage_idx + 1, n: STAGES.length, name: stage(turn.stage_idx), team: currentStageTeamLabel })}
         </div>
       </div>
 
@@ -392,17 +394,16 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
                 flexShrink: 0,
               }}
             >
-              Resume
+              {t("common.resume")}
             </button>
           </div>
         )}
 
-        {STAGES.map((stage, i) => (
+        {STAGES.map((s, i) => (
           <StageSection
             key={i}
             stageIdx={i}
-            stageName={stage.name}
-            stageColor={stage.color}
+            stageColor={s.color}
             interactivity={interactivityFor(i)}
             skipped={skipped.has(i)}
             canSkip={!isHeld && interactivityFor(i) !== "past" && i !== STAGES.length - 1}
@@ -425,20 +426,20 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
 
         {isHandoffPoint && !isHeld && (
           <div style={{ background: "rgba(26,46,68,0.07)", border: "1px solid rgba(26,46,68,0.18)", borderRadius: 8, padding: "12px 14px", marginTop: 16, lineHeight: 1.5 }}>
-            <div style={{ fontWeight: 600, fontSize: 13, color: "#1A2E44", marginBottom: 2 }}>Office work complete</div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: "#1A2E44", marginBottom: 2 }}>{t("detail.officeComplete")}</div>
             <div style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.6)" }}>
-              Tap below to assign a maintenance team member and hand off to <strong>{STAGES[destStage].name}</strong>.
+              {t("detail.handoffHint", { stage: stage(destStage) })}
             </div>
           </div>
         )}
         {allCurrentDone && !isLast && !isHandoffPoint && !isHeld && (
           <div style={{ background: "rgba(46,107,94,0.1)", border: "1px solid rgba(46,107,94,0.25)", borderRadius: 8, padding: "12px 14px", marginTop: 16, fontWeight: 400, fontSize: 13.5, lineHeight: 1.5, color: "#2A5C46" }}>
-            All done. Tap below to advance to <strong>{STAGES[destStage].name}</strong>.
+            {t("detail.allDoneAdvance", { stage: stage(destStage) })}
           </div>
         )}
         {isLast && allCurrentDone && (
           <div style={{ background: "rgba(61,122,95,0.12)", border: "1px solid rgba(61,122,95,0.25)", borderRadius: 8, padding: "12px 14px", marginTop: 16, fontWeight: 600, fontSize: 13.5, color: "#3D7A5F" }}>
-            ✓ This unit is Ready.
+            {t("detail.unitReady")}
           </div>
         )}
         <ActivityLog initialEvents={initialEvents} />
@@ -463,7 +464,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
                 fontSize: 15,
               }}
             >
-              Resume turn to advance →
+              {t("detail.resumeToAdvance")}
             </button>
           ) : isHandoffPoint ? (
             <button
@@ -481,7 +482,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
                 fontSize: 15,
               }}
             >
-              Hand off to Maintenance →
+              {t("detail.handoff")}
             </button>
           ) : (
             <button
@@ -502,10 +503,10 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
               }}
             >
               {currentStageSkipped
-                ? `Skip ${STAGES[turn.stage_idx].name} → ${STAGES[destStage].name}`
+                ? t("detail.skip", { a: stage(turn.stage_idx), b: stage(destStage) })
                 : allCurrentDone
-                  ? `Advance to ${STAGES[destStage].name} →`
-                  : `${openCurrent} task${openCurrent !== 1 ? "s" : ""} left before advancing`}
+                  ? t("detail.advanceTo", { stage: stage(destStage) })
+                  : tp("detail.tasksBeforeAdvance", openCurrent)}
             </button>
           )}
         </div>
@@ -566,7 +567,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
         <AssigneeSheet
           members={pickerMembers}
           teamLabel={
-            pickerStageTeam === "office" ? "Office team" : "Maintenance team"
+            pickerStageTeam === "office" ? t("assign.officeTeam") : t("assign.maintenanceTeam")
           }
           current={tasks.find((t) => t.id === picker.taskId)?.assignee}
           onPick={(initials) => onPickTaskAssignee(picker.taskId, initials)}
@@ -579,7 +580,6 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? "Office"
 
 function StageSection({
   stageIdx,
-  stageName,
   stageColor,
   interactivity,
   skipped,
@@ -595,7 +595,6 @@ function StageSection({
   onDeleteTask,
 }: {
   stageIdx: number;
-  stageName: string;
   stageColor: string;
   interactivity: Interactivity;
   skipped: boolean;
@@ -610,6 +609,8 @@ function StageSection({
   onAddTask: (name: string) => void;
   onDeleteTask: (taskId: string) => void;
 }) {
+  const { t, tp, stage } = useT();
+  const stageName = stage(stageIdx);
   const [open, setOpen] = useState(interactivity === "current" && !skipped);
   const [newTaskName, setNewTaskName] = useState("");
   const doneCount = tasks.filter((t) => t.done).length;
@@ -619,16 +620,16 @@ function StageSection({
   const canEditTasks = interactivity !== "past" && !skipped;
 
   const summary = skipped
-    ? "Skipped"
+    ? t("stage.skipped")
     : interactivity === "past"
       ? totalCount > 0
-        ? `Complete · ${totalCount} task${totalCount !== 1 ? "s" : ""}`
-        : "Complete"
+        ? tp("stage.completeN", totalCount)
+        : t("stage.complete")
       : interactivity === "future"
-        ? `${totalCount} task${totalCount !== 1 ? "s" : ""} queued`
+        ? tp("stage.queued", totalCount)
         : totalCount > 0
-          ? `${doneCount} of ${totalCount} done`
-          : "No tasks";
+          ? t("stage.progress", { done: doneCount, total: totalCount })
+          : t("stage.noTasks");
 
   const eyebrowColor = skipped
     ? "rgba(11,27,43,0.4)"
@@ -696,7 +697,7 @@ function StageSection({
                 flexShrink: 0,
               }}
             >
-              Skipped
+              {t("stage.skipped")}
             </span>
           )}
           <span
@@ -717,7 +718,7 @@ function StageSection({
           <button
             type="button"
             onClick={() => onToggleSkip(!skipped)}
-            title={skipped ? "Restore this phase" : "Skip this phase — its tasks won't block advancing"}
+            title={skipped ? t("detail.restorePhaseTitle") : t("detail.skipPhaseTitle")}
             style={{
               flexShrink: 0,
               padding: "4px 9px",
@@ -732,7 +733,7 @@ function StageSection({
               whiteSpace: "nowrap",
             }}
           >
-            {skipped ? "Un-skip" : "Skip phase"}
+            {skipped ? t("detail.unskip") : t("detail.skipPhase")}
           </button>
         )}
       </div>
@@ -741,7 +742,7 @@ function StageSection({
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {tasks.length === 0 && (
             <div style={{ fontWeight: 400, fontSize: 12.5, color: "rgba(11,27,43,0.4)", fontStyle: "italic", padding: "8px 4px" }}>
-              {skipped ? "Phase skipped — these tasks won't block advancing." : "No tasks for this stage."}
+              {skipped ? t("detail.emptySkipped") : t("detail.emptyStage")}
             </div>
           )}
 
@@ -776,7 +777,7 @@ function StageSection({
                 type="text"
                 value={newTaskName}
                 onChange={(e) => setNewTaskName(e.target.value)}
-                placeholder="Add a task…"
+                placeholder={t("detail.addTaskPlaceholder")}
                 style={{
                   flex: 1,
                   padding: "9px 12px",
@@ -803,7 +804,7 @@ function StageSection({
                   cursor: newTaskName.trim() ? "pointer" : "not-allowed",
                 }}
               >
-                Add
+                {t("common.add")}
               </button>
             </form>
           )}
@@ -836,6 +837,7 @@ function TaskRow({
   onReassign: (taskId: string) => void;
   onDelete: (taskId: string) => void;
 }) {
+  const { t } = useT();
   const canToggle = interactivity === "current" && !skipped;
   const canReassign = interactivity !== "past" && !skipped;
   // Per-turn task removal allowed on any non-past, non-skipped stage.
@@ -917,12 +919,12 @@ function TaskRow({
                   whiteSpace: "nowrap",
                 }}
               >
-                Added
+                {t("task.added")}
               </span>
             )}
             {skipped && (
               <span style={{ marginLeft: 7, fontSize: 11, fontWeight: 600, color: "rgba(11,27,43,0.4)", textDecoration: "none" }}>
-                N/A
+                {t("task.na")}
               </span>
             )}
           </span>
@@ -930,7 +932,7 @@ function TaskRow({
         <button
           type="button"
           disabled={!canReassign}
-          aria-label={canReassign ? `Reassign (currently ${task.assignee})` : `Assigned to ${task.assignee}`}
+          aria-label={canReassign ? t("detail.reassignAria", { who: task.assignee }) : t("detail.assignedToAria", { who: task.assignee })}
           onClick={canReassign ? () => onReassign(task.id) : undefined}
           style={{
             background: "transparent",
@@ -948,7 +950,7 @@ function TaskRow({
         {canDelete && (
           <button
             type="button"
-            aria-label="Delete task"
+            aria-label={t("detail.deleteTaskAria")}
             onClick={() => onDelete(task.id)}
             style={{
               background: "transparent",
@@ -988,6 +990,7 @@ function HandoffSheet({
   onConfirm: (assignee: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const maintenanceMembers = useMemo(
     () => profiles.filter((p) => p.role === "maintenance_lead" || p.role === "maintenance"),
     [profiles],
@@ -1006,22 +1009,21 @@ function HandoffSheet({
         style={{ background: "#F5F1E8", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: "20px 16px 32px", boxShadow: "0 -8px 24px rgba(11,27,43,0.2)" }}
       >
         <div style={{ marginBottom: 4 }}>
-          <div style={{ fontWeight: 700, fontSize: 17, color: "#1A2E44" }}>Hand off to Maintenance</div>
+          <div style={{ fontWeight: 700, fontSize: 17, color: "#1A2E44" }}>{t("handoff.title")}</div>
           <div style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.55)", marginTop: 3 }}>
-            {turn.property_name} · Unit {turn.unit} — Office work is complete.
-            Pick who takes it from here.
+            {t("handoff.subtitle", { property: turn.property_name ?? "", unit: turn.unit })}
           </div>
         </div>
 
         <div style={{ height: 1, background: "rgba(11,27,43,0.08)", margin: "14px 0" }} />
 
         <div style={{ fontWeight: 600, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(11,27,43,0.45)", marginBottom: 10 }}>
-          Maintenance team
+          {t("assign.maintenanceTeam")}
         </div>
 
         {maintenanceMembers.length === 0 ? (
           <p style={{ fontSize: 13.5, color: "rgba(11,27,43,0.5)", margin: "0 0 12px" }}>
-            No maintenance members found. Ask your admin to set roles in Supabase.
+            {t("handoff.noMembers")}
           </p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16 }}>
@@ -1079,7 +1081,7 @@ function HandoffSheet({
             cursor: selected ? "pointer" : "not-allowed",
           }}
         >
-          {selected ? `Hand off to ${profiles.find((p) => p.initials === selected)?.name ?? selected} →` : "Select a team member"}
+          {selected ? t("handoff.confirmTo", { name: profiles.find((p) => p.initials === selected)?.name ?? selected }) : t("handoff.selectMember")}
         </button>
 
         <button
@@ -1087,7 +1089,7 @@ function HandoffSheet({
           onClick={onClose}
           style={{ marginTop: 8, width: "100%", padding: 12, background: "transparent", border: "1px solid rgba(11,27,43,0.15)", borderRadius: 8, cursor: "pointer", fontWeight: 500, fontSize: 14, color: "rgba(11,27,43,0.6)" }}
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </div>
@@ -1101,6 +1103,7 @@ function EditTurnSheet({
   turn: TurnWithTasks;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const [unit, setUnit] = useState(turn.unit);
   const [vacateDate, setVacateDate] = useState(turn.vacate_date);
   const [targetDate, setTargetDate] = useState(turn.target_date);
@@ -1119,7 +1122,7 @@ function EditTurnSheet({
       });
       onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
+      setError(e instanceof Error ? e.message : t("edit.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -1130,7 +1133,7 @@ function EditTurnSheet({
     try {
       await deleteTurnAction(turn.id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delete failed");
+      setError(e instanceof Error ? e.message : t("edit.deleteFailed"));
       setSaving(false);
     }
   }
@@ -1160,20 +1163,20 @@ function EditTurnSheet({
         style={{ background: "#F5F1E8", borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: "20px 16px 32px", boxShadow: "0 -8px 24px rgba(11,27,43,0.18)" }}
       >
         <div style={{ fontWeight: 600, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.16em", color: "#2E6B5E", marginBottom: 16 }}>
-          Edit Turn
+          {t("edit.title")}
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
-            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>Unit</label>
+            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>{t("edit.unit")}</label>
             <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>Vacated</label>
+            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>{t("edit.vacated")}</label>
             <input type="date" value={vacateDate} onChange={(e) => setVacateDate(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>Target date</label>
+            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>{t("edit.targetDate")}</label>
             <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} style={inputStyle} />
           </div>
         </div>
@@ -1199,7 +1202,7 @@ function EditTurnSheet({
             cursor: saving || !unit.trim() ? "not-allowed" : "pointer",
           }}
         >
-          {saving && !confirmDelete ? "Saving…" : "Save changes"}
+          {saving && !confirmDelete ? t("edit.saving") : t("edit.save")}
         </button>
 
         {!confirmDelete ? (
@@ -1208,12 +1211,12 @@ function EditTurnSheet({
             onClick={() => setConfirmDelete(true)}
             style={{ marginTop: 8, width: "100%", padding: 13, borderRadius: 8, border: "1px solid rgba(196,92,59,0.3)", background: "transparent", color: "#C45C3B", fontWeight: 500, fontSize: 14, cursor: "pointer" }}
           >
-            Delete turn…
+            {t("edit.deleteTurn")}
           </button>
         ) : (
           <div style={{ marginTop: 8, background: "rgba(196,92,59,0.08)", border: "1px solid rgba(196,92,59,0.25)", borderRadius: 8, padding: "12px 14px" }}>
             <p style={{ margin: "0 0 10px", fontSize: 13.5, color: "#C45C3B", fontWeight: 500 }}>
-              Delete this turn and all its tasks? This cannot be undone.
+              {t("edit.confirmDelete")}
             </p>
             <div style={{ display: "flex", gap: 8 }}>
               <button
@@ -1221,7 +1224,7 @@ function EditTurnSheet({
                 onClick={() => setConfirmDelete(false)}
                 style={{ flex: 1, padding: "10px", borderRadius: 8, border: "1px solid rgba(11,27,43,0.15)", background: "transparent", color: "rgba(11,27,43,0.6)", fontWeight: 500, fontSize: 13.5, cursor: "pointer" }}
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 type="button"
@@ -1229,7 +1232,7 @@ function EditTurnSheet({
                 disabled={saving}
                 style={{ flex: 1, padding: "10px", borderRadius: 8, border: "none", background: "#C45C3B", color: "#fff", fontWeight: 600, fontSize: 13.5, cursor: saving ? "not-allowed" : "pointer" }}
               >
-                {saving ? "Deleting…" : "Yes, delete"}
+                {saving ? t("edit.deleting") : t("edit.yesDelete")}
               </button>
             </div>
           </div>
@@ -1240,7 +1243,7 @@ function EditTurnSheet({
           onClick={onClose}
           style={{ marginTop: 10, width: "100%", padding: 12, background: "transparent", border: "1px solid rgba(11,27,43,0.15)", borderRadius: 8, cursor: "pointer", fontWeight: 500, fontSize: 14, color: "rgba(11,27,43,0.6)" }}
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </div>
@@ -1260,6 +1263,7 @@ function AssigneeSheet({
   onPick: (initials: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useT();
   return (
     <div
       role="dialog"
@@ -1277,7 +1281,7 @@ function AssigneeSheet({
 
         {members.length === 0 ? (
           <p style={{ fontSize: 13.5, color: "rgba(11,27,43,0.5)", margin: "0 0 12px" }}>
-            No team members found. Ask your admin to set roles in Supabase.
+            {t("assign.noMembers")}
           </p>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -1320,7 +1324,7 @@ function AssigneeSheet({
           onClick={onClose}
           style={{ marginTop: 14, width: "100%", padding: "12px", background: "transparent", border: "1px solid rgba(11,27,43,0.15)", borderRadius: 8, cursor: "pointer", fontWeight: 500, fontSize: 14, color: "rgba(11,27,43,0.6)" }}
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </div>

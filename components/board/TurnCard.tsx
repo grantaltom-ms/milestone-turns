@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { StageTag } from "@/components/StageTag";
-import { avatarColorFromProfiles, STAGES, type ProfileMember } from "@/lib/stages";
+import { useT } from "@/lib/i18n-context";
+import { avatarColorFromProfiles, type ProfileMember } from "@/lib/stages";
 import type { Turn } from "@/lib/supabase/types";
 import type { TurnMeta } from "@/lib/turn-meta";
 
@@ -18,12 +19,13 @@ export function TurnCard({
   profiles: ProfileMember[];
   meta?: TurnMeta;
 }) {
-  const stageName = STAGES[turn.stage_idx]?.name ?? "?";
+  const { t, tp, stage } = useT();
+  const stageName = stage(turn.stage_idx);
   const days = meta?.daysInStage ?? 0;
   const isHeld = turn.hold_status != null;
   const isBlocked = turn.hold_status === "blocked";
   const holdBg = isBlocked ? "#8B4A2F" : "#C8922A";
-  const holdLabel = isBlocked ? "Blocked" : "On Hold";
+  const holdLabel = isBlocked ? t("status.blocked") : t("status.onHold");
 
   return (
     <Link
@@ -102,10 +104,10 @@ export function TurnCard({
       )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: isHeld && turn.hold_reason ? 8 : 9 }}>
         <span style={{ fontWeight: 400, fontSize: 12.5, color: isHeld ? "rgba(11,27,43,0.42)" : openTasks === 0 ? "#3D7A5F" : "rgba(11,27,43,0.48)" }}>
-          {openTasks === 0 ? "✓ All done" : `${openTasks} task${openTasks !== 1 ? "s" : ""} left`}
+          {openTasks === 0 ? t("card.allDone") : tp("card.tasksLeft", openTasks)}
           {!isHeld && days > 0 && (
             <span style={{ color: "rgba(11,27,43,0.38)", marginLeft: 8 }}>
-              · {days}d in {stageName}
+              · {t("card.daysInStage", { n: days, stage: stageName })}
             </span>
           )}
           {isHeld && (

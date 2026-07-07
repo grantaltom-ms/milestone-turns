@@ -7,6 +7,7 @@ import { STAGE_FILTER_CATEGORY, STAGES, type ProfileMember } from "@/lib/stages"
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import type { DashboardStats, Profile, Turn } from "@/lib/supabase/types";
 import type { TurnMeta } from "@/lib/turn-meta";
+import { useT } from "@/lib/i18n-context";
 import { UserHeader } from "@/components/UserHeader";
 import { DashboardHeader } from "./DashboardHeader";
 import { TurnCard } from "./TurnCard";
@@ -27,6 +28,7 @@ export function Board({
   meta: Record<string, TurnMeta>;
   stats: DashboardStats;
 }) {
+  const { t, tp, stage } = useT();
   const [filter, setFilter] = useState<Filter>("All");
   const [propertyFilter, setPropertyFilter] = useState<string | null>(null);
   const [propDropdownOpen, setPropDropdownOpen] = useState(false);
@@ -94,12 +96,12 @@ export function Board({
         <div style={{ padding: "50px 20px 0" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
             <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 22, color: "#F5F1E8", letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
-              Unit Turns
+              {t("board.title")}
             </h1>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <UserHeader profile={currentUser} />
               {currentUser.role === "admin" && (
-                <Link href="/admin" aria-label="Admin" title="Admin"
+                <Link href="/admin" aria-label={t("board.admin")} title={t("board.admin")}
                   style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: "1.5px solid rgba(245,241,232,0.3)", color: "rgba(245,241,232,0.85)", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
                 >
                   <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -108,14 +110,14 @@ export function Board({
                   </svg>
                 </Link>
               )}
-              <Link href="/turns/import" aria-label="Import CSV" title="Import CSV"
+              <Link href="/turns/import" aria-label={t("board.import")} title={t("board.import")}
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "transparent", border: "1.5px solid rgba(245,241,232,0.3)", color: "rgba(245,241,232,0.85)", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                   <path d="M8 10V2M8 2L5 5M8 2L11 5M3 11v1.5A1.5 1.5 0 004.5 14h7a1.5 1.5 0 001.5-1.5V11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </Link>
-              <Link href="/turns/new" aria-label="New turn"
+              <Link href="/turns/new" aria-label={t("board.newTurn")}
                 style={{ width: 34, height: 34, borderRadius: "50%", background: "#2E6B5E", color: "#fff", fontSize: 22, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
               >
                 +
@@ -144,7 +146,7 @@ export function Board({
                 cursor: "pointer", whiteSpace: "nowrap",
               }}
             >
-              {propertyFilter ?? "All Buildings"}
+              {propertyFilter ?? t("board.allBuildings")}
               <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                 <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -177,7 +179,7 @@ export function Board({
                         onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "rgba(245,241,232,0.07)"; }}
                         onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "transparent"; }}
                       >
-                        {b ?? "All Buildings"}
+                        {b ?? t("board.allBuildings")}
                       </button>
                     );
                   })}
@@ -187,11 +189,11 @@ export function Board({
           </div>
           <div style={{ width: 1, height: 16, background: "rgba(245,241,232,0.15)", flex: "0 0 auto" }} />
           <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
-            <span style={{ fontFamily: "var(--font-sans)", fontSize: 11.5, color: "rgba(245,241,232,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>Group</span>
+            <span style={{ fontFamily: "var(--font-sans)", fontSize: 11.5, color: "rgba(245,241,232,0.5)", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{t("board.group")}</span>
             <div style={{ display: "flex", gap: 4 }}>
               {(["none", "property", "stage"] as GroupBy[]).map((g) => {
                 const active = groupBy === g;
-                const label = g === "none" ? "None" : g === "property" ? "Property" : "Stage";
+                const label = g === "none" ? t("board.group.none") : g === "property" ? t("board.group.property") : t("board.group.stage");
                 return (
                   <button key={g} type="button" onClick={() => setGroupBy(g)}
                     style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${active ? "transparent" : "rgba(245,241,232,0.2)"}`, background: active ? "rgba(245,241,232,0.18)" : "transparent", color: active ? "#F5F1E8" : "rgba(245,241,232,0.6)", fontFamily: "var(--font-sans)", fontWeight: active ? 600 : 400, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
@@ -222,7 +224,7 @@ export function Board({
                   display: "flex", alignItems: "center", gap: 5,
                 }}
               >
-                {f}
+                {t(`board.filter.${f}`)}
                 {chipCount > 0 && (
                   <span style={{ background: active ? "rgba(255,255,255,0.3)" : `${chipColor}2e`, color: active ? "#fff" : chipColor, borderRadius: 999, padding: "1px 6px", fontSize: 11, fontWeight: 700, lineHeight: 1.4 }}>
                     {chipCount}
@@ -238,7 +240,7 @@ export function Board({
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 32px", background: "#F5F1E8" }}>
         {visible.length === 0 ? (
           <p style={{ textAlign: "center", fontWeight: 400, fontSize: 14, color: "rgba(11,27,43,0.38)", marginTop: 40 }}>
-            No units match this filter.
+            {t("board.empty")}
           </p>
         ) : grouped ? (
           Array.from(grouped.entries()).map(([groupKey, groupTurns]) => {
@@ -247,12 +249,12 @@ export function Board({
             return (
               <div key={groupKey}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, marginTop: 6, position: "sticky", top: 0, zIndex: 1, background: "#F5F1E8", paddingTop: 4, paddingBottom: 4 }}>
-                  {stageMeta ? (
-                    <span style={{ background: stageMeta.color, color: "#fff", borderRadius: 999, padding: "3px 10px", fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 12 }}>{stageMeta.name}</span>
+                  {stageMeta && stageIdx !== null ? (
+                    <span style={{ background: stageMeta.color, color: "#fff", borderRadius: 999, padding: "3px 10px", fontFamily: "var(--font-sans)", fontWeight: 600, fontSize: 12 }}>{stage(stageIdx)}</span>
                   ) : (
                     <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 13, color: "#1A2E44", letterSpacing: "-0.01em" }}>{groupKey}</span>
                   )}
-                  <span style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "rgba(11,27,43,0.38)", fontWeight: 400 }}>{groupTurns.length} unit{groupTurns.length !== 1 ? "s" : ""}</span>
+                  <span style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "rgba(11,27,43,0.38)", fontWeight: 400 }}>{tp("board.units", groupTurns.length)}</span>
                 </div>
                 {groupTurns.map((t) => (
                   <TurnCard key={t.id} turn={t} openTasks={openCounts[t.id] ?? 0} profiles={profiles} meta={meta[t.id]} />

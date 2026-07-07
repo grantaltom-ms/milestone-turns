@@ -10,6 +10,7 @@ const DEV_PROFILE: Profile = {
   role: "office_lead",
   initials: process.env.NEXT_PUBLIC_DEFAULT_USER_INITIALS ?? "DEV",
   avatar_color: "#2E6B5E",
+  language: "en",
   created_at: new Date(0).toISOString(),
 };
 
@@ -20,7 +21,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   if (!user) return REQUIRE_AUTH ? null : DEV_PROFILE;
   const { data } = await supabase
     .from("profiles")
-    .select("id, name, email, role, initials, avatar_color, created_at")
+    .select("id, name, email, role, initials, avatar_color, language, created_at")
     .eq("id", user.id)
     .maybeSingle();
   return data as Profile | null;

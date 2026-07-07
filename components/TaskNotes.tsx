@@ -3,9 +3,12 @@
 import { useRef, useState, useTransition } from "react";
 import { addTaskNoteAction } from "@/app/actions";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
+import { useT } from "@/lib/i18n-context";
 import type { TaskNote } from "@/lib/supabase/types";
 
-function formatNoteTime(iso: string): string {
+type TFns = ReturnType<typeof useT>;
+
+function formatNoteTime(iso: string, t: TFns["t"]): string {
   const d = new Date(iso);
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
@@ -13,10 +16,10 @@ function formatNoteTime(iso: string): string {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMins < 2) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffMins < 2) return t("time.justNow");
+  if (diffMins < 60) return t("time.minsAgo", { n: diffMins });
+  if (diffHours < 24) return t("time.hoursAgo", { n: diffHours });
+  if (diffDays < 7) return t("time.daysAgo", { n: diffDays });
   const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   return `${months[d.getMonth()]} ${d.getDate()}`;
 }
@@ -32,6 +35,7 @@ export function TaskNotes({
   taskName: string;
   initialNotes: TaskNote[];
 }) {
+  const { t, tp } = useT();
   const [notes, setNotes] = useState<TaskNote[]>(initialNotes);
   const [expanded, setExpanded] = useState(false);
   const [composing, setComposing] = useState(false);
@@ -89,7 +93,7 @@ export function TaskNotes({
         stage_idx: stageIdx,
         task_name: taskName,
         author_id: "",
-        author_name: "You",
+        author_name: t("notes.you"),
         content: draft.trim() || null,
         photo_url: photoUrl ?? null,
         created_at: new Date().toISOString(),
@@ -136,7 +140,7 @@ export function TaskNotes({
             }}
           >
             <span style={{ display: "inline-block", width: 12, transition: "transform 0.15s", transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
-            {notes.length} note{notes.length !== 1 ? "s" : ""}
+            {tp("notes.count", notes.length)}
           </button>
           {expanded && (
             <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -147,7 +151,7 @@ export function TaskNotes({
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                     <span style={{ fontWeight: 600, fontSize: 11.5, color: "#0B1B2B" }}>{note.author_name}</span>
-                    <span style={{ fontSize: 11, color: "rgba(11,27,43,0.38)" }}>{formatNoteTime(note.created_at)}</span>
+                    <span style={{ fontSize: 11, color: "rgba(11,27,43,0.38)" }}>{formatNoteTime(note.created_at, t)}</span>
                   </div>
                   {note.content && (
                     <p style={{ margin: 0, fontSize: 13, color: "#0B1B2B", lineHeight: 1.45, whiteSpace: "pre-wrap", marginBottom: note.photo_url ? 6 : 0 }}>
@@ -158,7 +162,7 @@ export function TaskNotes({
                     <a href={note.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: "block" }}>
                       <img
                         src={note.photo_url}
-                        alt="Note photo"
+                        alt={t("notes.photoAlt")}
                         style={{ maxWidth: "100%", borderRadius: 5, marginTop: note.content ? 4 : 0, display: "block" }}
                       />
                     </a>
@@ -177,7 +181,7 @@ export function TaskNotes({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             autoFocus
-            placeholder="Type a note… (optional if adding a photo)"
+            placeholder={t("notes.placeholderOptional")}
             rows={2}
             style={{
               width: "100%", border: "1.5px solid rgba(200,146,42,0.35)", borderRadius: 6,
@@ -192,7 +196,7 @@ export function TaskNotes({
           {/* Photo preview */}
           {photoPreview && (
             <div style={{ position: "relative", marginTop: 6, display: "inline-block" }}>
-              <img src={photoPreview} alt="Selected" style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 6, display: "block" }} />
+              <img src={photoPreview} alt={t("notes.selectedAlt")} style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 6, display: "block" }} />
               <button
                 type="button"
                 onClick={clearPhoto}
@@ -221,7 +225,7 @@ export function TaskNotes({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              title="Add photo"
+              title={t("notes.addPhotoTitle")}
               style={{
                 padding: "6px 10px", background: "transparent",
                 border: "1px solid rgba(200,146,42,0.4)", borderRadius: 6,
@@ -241,7 +245,7 @@ export function TaskNotes({
                 opacity: canSubmit ? 1 : 0.55,
               }}
             >
-              {uploading ? "Uploading…" : "Save"}
+              {uploading ? t("notes.uploading") : t("common.save")}
             </button>
             <button
               type="button"
@@ -251,7 +255,7 @@ export function TaskNotes({
                 border: "1px solid rgba(11,27,43,0.15)", borderRadius: 6, fontSize: 12.5, cursor: "pointer",
               }}
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </form>
@@ -265,7 +269,7 @@ export function TaskNotes({
             color: "rgba(11,27,43,0.38)", fontSize: 11.5, fontWeight: 500,
           }}
         >
-          <span style={{ fontSize: 13, lineHeight: 1 }}>+</span> Add Note // Picture
+          <span style={{ fontSize: 13, lineHeight: 1 }}>+</span> {t("notes.add")}
         </button>
       )}
     </div>

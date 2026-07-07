@@ -1,5 +1,7 @@
 export type HoldStatus = "on_hold" | "blocked";
 
+export type Locale = "en" | "es";
+
 export type Turn = {
   id: string;
   property_id: number;
@@ -46,6 +48,7 @@ export type Profile = {
   role: "office_lead" | "office" | "maintenance_lead" | "maintenance" | "admin";
   initials: string;
   avatar_color: string;
+  language: Locale;
   created_at: string;
 };
 
