@@ -37,6 +37,9 @@ const en: Dict = {
   "board.units_other": "{n} units",
   "board.newTurn": "New turn",
   "board.admin": "Admin",
+  "board.active_one": "active turn",
+  "board.active_other": "active turns",
+  "board.heldCount": "{n} held",
 
   // dashboard tiles
   "tile.inTurn": "In Turn",
@@ -265,6 +268,9 @@ const es: Dict = {
   "board.units_other": "{n} unidades",
   "board.newTurn": "Nueva rotación",
   "board.admin": "Admin",
+  "board.active_one": "turno activo",
+  "board.active_other": "turnos activos",
+  "board.heldCount": "{n} en pausa",
 
   // dashboard tiles
   "tile.inTurn": "En rotación",
