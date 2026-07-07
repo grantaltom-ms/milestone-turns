@@ -115,3 +115,121 @@ export async function deleteDefaultTaskAction(id: number) {
   revalidatePath("/admin");
   revalidatePath("/turns/new");
 }
+
+// ─── task templates (per phase) ─────────────────────────────────────────────
+export type TemplateItem = { name: string; sort_order: number };
+export type SavedTemplate = { id: number; stage_idx: number; name: string; items: TemplateItem[] };
+
+// Save the phase's current default tasks as a named template. If a template
+// with this (stage_idx, name) already exists, its items are replaced so "save"
+// updates rather than erroring on the unique constraint.
+export async function saveTemplateAction(stageIdx: number, templateName: string): Promise<SavedTemplate> {
+  const name = templateName.trim();
+  if (!name) throw new Error("Template name required");
+  const supabase = await requireAdmin();
+
+  // Snapshot the phase's current defaults, in order.
+  const { data: defaults, error: defErr } = await supabase
+    .from("stage_default_tasks")
+    .select("name, sort_order")
+    .eq("stage_idx", stageIdx)
+    .order("sort_order", { ascending: true });
+  if (defErr) throw defErr;
+  const items: TemplateItem[] = (defaults ?? []).map((d, i) => ({
+    name: (d as { name: string }).name,
+    sort_order: i, // renumber 0..n-1 so gaps from deletes don't carry over
+  }));
+
+  // Upsert the template row, then replace its items.
+  const { data: existing, error: findErr } = await supabase
+    .from("stage_task_templates")
+    .select("id")
+    .eq("stage_idx", stageIdx)
+    .eq("name", name)
+    .maybeSingle();
+  if (findErr) throw findErr;
+
+  let templateId = (existing as { id?: number } | null)?.id;
+  if (templateId === undefined) {
+    const { data: created, error: insErr } = await supabase
+      .from("stage_task_templates")
+      .insert({ stage_idx: stageIdx, name })
+      .select("id")
+      .single();
+    if (insErr) throw insErr;
+    templateId = (created as { id: number }).id;
+  } else {
+    const { error: clearErr } = await supabase
+      .from("stage_task_template_items")
+      .delete()
+      .eq("template_id", templateId);
+    if (clearErr) throw clearErr;
+  }
+
+  if (items.length > 0) {
+    const { error: itemsErr } = await supabase
+      .from("stage_task_template_items")
+      .insert(items.map((it) => ({ template_id: templateId, name: it.name, sort_order: it.sort_order })));
+    if (itemsErr) throw itemsErr;
+  }
+
+  revalidatePath("/admin");
+  return { id: templateId!, stage_idx: stageIdx, name, items };
+}
+
+// Load a template into a phase: REPLACE that phase's default tasks with the
+// template's items. Delete-then-insert keeps the unique (stage_idx, sort_order)
+// index collision-free. Returns the new default-task rows for optimistic UI.
+export async function loadTemplateAction(
+  stageIdx: number,
+  templateId: number,
+): Promise<{ id: number; stage_idx: number; name: string; sort_order: number }[]> {
+  const supabase = await requireAdmin();
+
+  const { data: items, error: itemsErr } = await supabase
+    .from("stage_task_template_items")
+    .select("name, sort_order")
+    .eq("template_id", templateId)
+    .order("sort_order", { ascending: true });
+  if (itemsErr) throw itemsErr;
+
+  const { error: delErr } = await supabase
+    .from("stage_default_tasks")
+    .delete()
+    .eq("stage_idx", stageIdx);
+  if (delErr) throw delErr;
+
+  const rows = (items ?? []).map((it, i) => ({
+    stage_idx: stageIdx,
+    name: (it as { name: string }).name,
+    sort_order: i,
+  }));
+  if (rows.length === 0) {
+    revalidatePath("/admin");
+    revalidatePath("/turns/new");
+    return [];
+  }
+
+  const { data: inserted, error: insErr } = await supabase
+    .from("stage_default_tasks")
+    .insert(rows)
+    .select("id, stage_idx, name, sort_order")
+    .order("sort_order", { ascending: true });
+  if (insErr) throw insErr;
+
+  revalidatePath("/admin");
+  revalidatePath("/turns/new");
+  return (inserted ?? []) as { id: number; stage_idx: number; name: string; sort_order: number }[];
+}
+
+// Delete a saved template (items cascade via FK).
+export async function deleteTemplateAction(templateId: number) {
+  const supabase = await requireAdmin();
+  const { error } = await supabase
+    .from("stage_task_templates")
+    .delete()
+    .eq("id", templateId);
+  if (error) throw error;
+
+  revalidatePath("/admin");
+}

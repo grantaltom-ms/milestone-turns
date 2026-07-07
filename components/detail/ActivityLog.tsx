@@ -3,67 +3,73 @@
 import { useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { STAGES } from "@/lib/stages";
+import { useT } from "@/lib/i18n-context";
 import type { TurnEvent } from "@/lib/supabase/types";
+
+type TFns = ReturnType<typeof useT>;
 
 // ── relative time ─────────────────────────────────────────────────────────────
 
-function relativeTime(iso: string): string {
+function relativeTime(iso: string, t: TFns["t"]): string {
   const diff = Date.now() - new Date(iso).getTime();
   const s = Math.floor(diff / 1000);
-  if (s < 60) return "just now";
+  if (s < 60) return t("time.justNow");
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t("time.minsAgo", { n: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return t("time.hoursAgo", { n: h });
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
+  if (d < 7) return t("time.daysAgo", { n: d });
   const w = Math.floor(d / 7);
-  if (w < 5) return `${w}w ago`;
+  if (w < 5) return t("time.weeksAgo", { n: w });
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 // ── human-readable descriptions ───────────────────────────────────────────────
 
-function describe(event: TurnEvent): string {
+function describe(event: TurnEvent, { t, stage }: TFns): string {
   const p = event.payload as Record<string, unknown> | null ?? {};
   const stageName = (idx: unknown) =>
-    typeof idx === "number" && STAGES[idx] ? STAGES[idx].name : String(idx);
+    typeof idx === "number" && STAGES[idx] ? stage(idx) : String(idx);
+  const taskName = (v: unknown) => (v == null ? t("activity.aTask") : String(v));
 
   switch (event.event_type) {
     case "created":
-      return "created this turn";
+      return t("activity.created");
     case "advanced":
-      return `advanced to ${stageName(p.to_stage)}`;
+      return t("activity.advanced", { stage: stageName(p.to_stage) });
     case "handed_off":
-      return `handed off to ${stageName(p.to_stage)}${p.assigned_to ? ` → ${p.assigned_to}` : ""}`;
+      return p.assigned_to
+        ? t("activity.handedOffTo", { stage: stageName(p.to_stage), who: String(p.assigned_to) })
+        : t("activity.handedOff", { stage: stageName(p.to_stage) });
     case "held": {
-      const label = p.hold_status === "blocked" ? "blocked" : "put on hold";
-      return p.reason ? `${label} — "${p.reason}"` : label;
+      const label = p.hold_status === "blocked" ? t("activity.blockedLabel") : t("activity.heldLabel");
+      return p.reason ? t("activity.withReason", { label, reason: String(p.reason) }) : label;
     }
     case "resumed":
-      return "resumed the turn";
+      return t("activity.resumed");
     case "assigned":
-      return `assigned turn to ${p.assignee ?? "–"}`;
+      return t("activity.assigned", { who: p.assignee != null ? String(p.assignee) : "–" });
     case "task_assigned":
-      return `assigned "${p.task_name ?? "task"}" to ${p.assignee ?? "–"}`;
+      return t("activity.taskAssigned", { task: p.task_name != null ? String(p.task_name) : t("activity.task"), who: p.assignee != null ? String(p.assignee) : "–" });
     case "edited": {
       const fields = Array.isArray(p.fields_changed) ? (p.fields_changed as string[]).join(", ") : "";
-      return fields ? `edited ${fields}` : "edited turn details";
+      return fields ? t("activity.edited", { fields }) : t("activity.editedDetails");
     }
     case "task_completed":
-      return `checked off "${p.task_name ?? "a task"}"`;
+      return t("activity.taskCompleted", { task: taskName(p.task_name) });
     case "task_reopened":
-      return `unchecked "${p.task_name ?? "a task"}"`;
+      return t("activity.taskReopened", { task: taskName(p.task_name) });
     case "note_added":
-      return `added a note on "${p.task_name ?? "a task"}"`;
+      return t("activity.noteAdded", { task: taskName(p.task_name) });
     case "phase_skipped":
-      return `skipped the ${stageName(p.stage)} phase`;
+      return t("activity.phaseSkipped", { stage: stageName(p.stage) });
     case "phase_unskipped":
-      return `restored the ${stageName(p.stage)} phase`;
+      return t("activity.phaseUnskipped", { stage: stageName(p.stage) });
     case "task_added":
-      return `added task "${p.task_name ?? "a task"}"`;
+      return t("activity.taskAdded", { task: taskName(p.task_name) });
     case "task_removed":
-      return `removed task "${p.task_name ?? "a task"}"`;
+      return t("activity.taskRemoved", { task: taskName(p.task_name) });
     default:
       return event.event_type;
   }
@@ -87,6 +93,8 @@ function colorForInitials(initials: string): string {
 const PAGE_SIZE = 25;
 
 export function ActivityLog({ initialEvents }: { initialEvents: TurnEvent[] }) {
+  const tFns = useT();
+  const { t } = tFns;
   const [shown, setShown] = useState(PAGE_SIZE);
   const visible = initialEvents.slice(0, shown);
   const hasMore = shown < initialEvents.length;
@@ -124,7 +132,7 @@ export function ActivityLog({ initialEvents }: { initialEvents: TurnEvent[] }) {
             color: "rgba(11,27,43,0.45)",
           }}
         >
-          Activity
+          {t("activity.title")}
         </span>
       </div>
 
@@ -189,7 +197,7 @@ export function ActivityLog({ initialEvents }: { initialEvents: TurnEvent[] }) {
                   color: "rgba(11,27,43,0.55)",
                 }}
               >
-                {describe(event)}
+                {describe(event, tFns)}
               </span>
               <span
                 style={{
@@ -199,7 +207,7 @@ export function ActivityLog({ initialEvents }: { initialEvents: TurnEvent[] }) {
                   whiteSpace: "nowrap",
                 }}
               >
-                · {relativeTime(event.created_at)}
+                · {relativeTime(event.created_at, t)}
               </span>
             </div>
           </div>
@@ -224,7 +232,7 @@ export function ActivityLog({ initialEvents }: { initialEvents: TurnEvent[] }) {
             textUnderlineOffset: 2,
           }}
         >
-          Show {Math.min(PAGE_SIZE, initialEvents.length - shown)} more
+          {t("activity.showMore", { n: Math.min(PAGE_SIZE, initialEvents.length - shown) })}
         </button>
       )}
     </div>

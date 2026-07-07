@@ -1,6 +1,10 @@
+"use client";
+
 import { STAGES } from "@/lib/stages";
+import { useT } from "@/lib/i18n-context";
 
 export function StageTag({ stageIdx, lg = false }: { stageIdx: number; lg?: boolean }) {
+  const { stage } = useT();
   const s = STAGES[stageIdx];
   return (
     <span
@@ -16,7 +20,7 @@ export function StageTag({ stageIdx, lg = false }: { stageIdx: number; lg?: bool
         flexShrink: 0,
       }}
     >
-      {s.name}
+      {stage(stageIdx)}
     </span>
   );
 }

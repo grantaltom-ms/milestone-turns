@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "@/lib/i18n-context";
 import type { HoldStatus } from "@/lib/supabase/types";
 
 export function HoldSheet({
@@ -18,6 +19,7 @@ export function HoldSheet({
   onConfirm: (status: HoldStatus, reason: string) => void;
   onClose: () => void;
 }) {
+  const { t } = useT();
   const [selected, setSelected] = useState<HoldStatus>(currentStatus ?? "on_hold");
   const [reason, setReason] = useState(currentReason ?? "");
   const canConfirm = reason.trim().length > 0;
@@ -25,17 +27,17 @@ export function HoldSheet({
   const OPTIONS: { value: HoldStatus; label: string; icon: string; color: string; desc: string }[] = [
     {
       value: "on_hold",
-      label: "On Hold",
+      label: t("hold.onHold"),
       icon: "⏸",
       color: "#C8922A",
-      desc: "Waiting on something — vendor, part, approval, etc.",
+      desc: t("hold.onHoldDesc"),
     },
     {
       value: "blocked",
-      label: "Blocked",
+      label: t("hold.blocked"),
       icon: "🚫",
       color: "#8B4A2F",
-      desc: "Cannot proceed — access issue, dispute, safety concern, etc.",
+      desc: t("hold.blockedDesc"),
     },
   ];
 
@@ -65,9 +67,9 @@ export function HoldSheet({
         }}
       >
         <div style={{ marginBottom: 4 }}>
-          <div style={{ fontWeight: 700, fontSize: 17, color: "#1A2E44" }}>Put Turn on Hold</div>
+          <div style={{ fontWeight: 700, fontSize: 17, color: "#1A2E44" }}>{t("hold.putOnHold")}</div>
           <div style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.55)", marginTop: 3 }}>
-            {propertyName} · Unit {unit}
+            {propertyName} · {t("edit.unit")} {unit}
           </div>
         </div>
 
@@ -116,15 +118,15 @@ export function HoldSheet({
               marginBottom: 7,
             }}
           >
-            Reason <span style={{ color: "#C8922A" }}>*</span>
+            {t("hold.reason")} <span style={{ color: "#C8922A" }}>*</span>
           </label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder={
               selected === "blocked"
-                ? "e.g. Tenant dispute — access denied until resolved"
-                : "e.g. Waiting on HVAC vendor — ETA unknown"
+                ? t("hold.placeholderBlocked")
+                : t("hold.placeholderHold")
             }
             rows={3}
             autoFocus
@@ -164,7 +166,7 @@ export function HoldSheet({
             transition: "background 0.15s",
           }}
         >
-          {selected === "blocked" ? "🚫 Mark as Blocked" : "⏸ Put on Hold"}
+          {selected === "blocked" ? t("hold.confirmBlocked") : t("hold.confirmHold")}
         </button>
 
         <button
@@ -183,7 +185,7 @@ export function HoldSheet({
             color: "rgba(11,27,43,0.6)",
           }}
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </div>

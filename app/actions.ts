@@ -59,6 +59,7 @@ export async function toggleTaskAction(taskId: string, done: boolean) {
     });
   }
   revalidatePath("/");
+  revalidatePath("/my-tasks");
 }
 
 export async function setTaskAssigneeAction(taskId: string, assignee: string) {
@@ -296,6 +297,15 @@ export async function signOutAction(): Promise<void> {
   const supabase = await getServerSupabase();
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+/** Set the signed-in user's preferred UI language ('en' | 'es'). */
+export async function setLanguageAction(language: "en" | "es"): Promise<void> {
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("profiles").update({ language }).eq("id", user.id);
+  revalidatePath("/", "layout");
 }
 
 export async function updateTurnAction(turnId: string, patch: {

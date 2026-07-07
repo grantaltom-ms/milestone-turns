@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { Detail } from "@/components/detail/Detail";
+import { LocaleProvider } from "@/lib/i18n-context";
 import { loadProfiles, loadTaskNotes, loadTurnWithTasks } from "@/lib/data";
 import { loadTurnEvents } from "@/lib/events";
 import { getCurrentProfile } from "@/lib/current-user";
@@ -26,12 +27,14 @@ export default async function TurnDetailPage({
   ]);
 
   return (
-    <Detail
-      turn={turn}
-      profiles={profiles}
-      currentUser={currentUser}
-      initialNotes={initialNotes}
-      initialEvents={initialEvents}
-    />
+    <LocaleProvider locale={currentUser.language ?? "en"}>
+      <Detail
+        turn={turn}
+        profiles={profiles}
+        currentUser={currentUser}
+        initialNotes={initialNotes}
+        initialEvents={initialEvents}
+      />
+    </LocaleProvider>
   );
 }

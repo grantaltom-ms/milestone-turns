@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { STAGES } from "@/lib/stages";
+import { useT } from "@/lib/i18n-context";
 
 export function RevertSheet({
   propertyName,
@@ -16,12 +17,13 @@ export function RevertSheet({
   onConfirm: (reason: string) => void;
   onClose: () => void;
 }) {
+  const { t, stage } = useT();
   const [reason, setReason] = useState("");
   const atFirst = currentStageIdx === 0;
   const canConfirm = !atFirst && reason.trim().length > 0;
 
-  const currentStageName = STAGES[currentStageIdx]?.name ?? "Current stage";
-  const prevStageName = currentStageIdx > 0 ? STAGES[currentStageIdx - 1].name : null;
+  const currentStageName = STAGES[currentStageIdx] ? stage(currentStageIdx) : "";
+  const prevStageName = currentStageIdx > 0 ? stage(currentStageIdx - 1) : null;
 
   return (
     <div
@@ -50,9 +52,9 @@ export function RevertSheet({
       >
         {/* Header */}
         <div style={{ marginBottom: 4 }}>
-          <div style={{ fontWeight: 700, fontSize: 17, color: "#1A2E44" }}>Send Back a Stage</div>
+          <div style={{ fontWeight: 700, fontSize: 17, color: "#1A2E44" }}>{t("revert.title")}</div>
           <div style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.55)", marginTop: 3 }}>
-            {propertyName} · Unit {unit}
+            {propertyName} · {t("edit.unit")} {unit}
           </div>
         </div>
 
@@ -73,7 +75,7 @@ export function RevertSheet({
         >
           {atFirst ? (
             <span style={{ fontWeight: 500, fontSize: 13.5, color: "rgba(11,27,43,0.45)" }}>
-              Already at first stage — cannot go back further.
+              {t("revert.atFirst")}
             </span>
           ) : (
             <>
@@ -120,12 +122,12 @@ export function RevertSheet({
                 marginBottom: 7,
               }}
             >
-              Why is this being sent back? <span style={{ color: "#C8922A" }}>*</span>
+              {t("revert.reasonLabel")} <span style={{ color: "#C8922A" }}>*</span>
             </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Materials not ready — painting cannot begin yet"
+              placeholder={t("revert.placeholder")}
               rows={3}
               autoFocus
               style={{
@@ -164,7 +166,7 @@ export function RevertSheet({
             transition: "background 0.15s",
           }}
         >
-          {prevStageName ? `Send back to ${prevStageName} →` : "Cannot revert"}
+          {prevStageName ? t("revert.confirmTo", { stage: prevStageName }) : t("revert.cannot")}
         </button>
 
         <button
@@ -183,7 +185,7 @@ export function RevertSheet({
             color: "rgba(11,27,43,0.6)",
           }}
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </div>

@@ -1,10 +1,11 @@
 "use client";
 
+import { useT } from "@/lib/i18n-context";
 import type { DashboardStats } from "@/lib/supabase/types";
 
 type TileConfig = {
   key: keyof DashboardStats;
-  label: string;
+  labelKey: string;
   filterTarget?: "Overdue" | "On Hold";
   activeColor: (val: number) => string;
   isDecimal?: boolean;
@@ -13,18 +14,18 @@ type TileConfig = {
 const TILES: TileConfig[] = [
   {
     key: "inTurn",
-    label: "In Turn",
+    labelKey: "tile.inTurn",
     activeColor: () => "#F5F1E8",
   },
   {
     key: "onHold",
-    label: "On Hold",
+    labelKey: "tile.onHold",
     filterTarget: "On Hold",
     activeColor: (v) => (v > 0 ? "#C8922A" : "#F5F1E8"),
   },
   {
     key: "ready",
-    label: "Ready",
+    labelKey: "tile.ready",
     activeColor: (v) => (v > 0 ? "#3D7A5F" : "#F5F1E8"),
   },
 ];
@@ -36,6 +37,7 @@ export function DashboardHeader({
   stats: DashboardStats;
   onFilterChange: (f: "Overdue" | "On Hold") => void;
 }) {
+  const { t } = useT();
   return (
     <div
       style={{
@@ -103,7 +105,7 @@ export function DashboardHeader({
                 whiteSpace: "nowrap",
               }}
             >
-              {tile.label}
+              {t(tile.labelKey)}
             </span>
           </button>
         );
