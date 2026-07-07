@@ -391,3 +391,39 @@ export async function loadMyTasks(initials: string): Promise<MyTasksResult> {
   later.sort((a, b) => a.target_date.localeCompare(b.target_date) || a.stage_idx - b.stage_idx);
   return { now, later };
 }
+
+export type StageTaskTemplateItem = { name: string; sort_order: number };
+export type StageTaskTemplate = {
+  id: number;
+  stage_idx: number;
+  name: string;
+  items: StageTaskTemplateItem[];
+};
+
+/** Admin loader: per-phase task templates with their ordered items. */
+export async function loadStageTaskTemplates(): Promise<StageTaskTemplate[]> {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("stage_task_templates")
+    .select("id, stage_idx, name, stage_task_template_items(name, sort_order)")
+    .order("stage_idx", { ascending: true })
+    .order("name", { ascending: true });
+  if (error) throw error;
+
+  return (data ?? []).map((t) => {
+    const row = t as {
+      id: number;
+      stage_idx: number;
+      name: string;
+      stage_task_template_items: StageTaskTemplateItem[] | null;
+    };
+    return {
+      id: row.id,
+      stage_idx: row.stage_idx,
+      name: row.name,
+      items: (row.stage_task_template_items ?? [])
+        .slice()
+        .sort((a, b) => a.sort_order - b.sort_order),
+    } satisfies StageTaskTemplate;
+  });
+}
