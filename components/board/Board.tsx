@@ -31,6 +31,16 @@ export function Board({
   const router = useRouter();
   const mineSet = useMemo(() => new Set(mineIds), [mineIds]);
 
+  // Persist expanded buildings for this session so opening a unit and pressing
+  // Back returns to the same expanded view instead of collapsing everything.
+  // Hydrate after mount (SSR renders the compressed default → no mismatch).
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("board:openBuildings");
+      if (raw) setOpenBuildings(new Set(JSON.parse(raw) as string[]));
+    } catch {}
+  }, []);
+
   useEffect(() => {
     const supabase = getBrowserSupabase();
     const channel = supabase
@@ -83,6 +93,7 @@ export function Board({
       const next = new Set(prev);
       if (next.has(name)) next.delete(name);
       else next.add(name);
+      try { sessionStorage.setItem("board:openBuildings", JSON.stringify([...next])); } catch {}
       return next;
     });
   }
