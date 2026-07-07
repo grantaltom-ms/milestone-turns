@@ -8,10 +8,12 @@ import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { Avatar } from "@/components/Avatar";
 import { StageTag } from "@/components/StageTag";
 import { BottomNav } from "@/components/BottomNav";
+import { useT } from "@/lib/i18n-context";
 import type { MyTaskItem, MyTasksResult } from "@/lib/data";
 import type { Profile } from "@/lib/supabase/types";
 
 export function MyTasks({ currentUser, tasks }: { currentUser: Profile; tasks: MyTasksResult }) {
+  const { t, tp } = useT();
   const router = useRouter();
   // Track ids just checked off so they hide immediately; the server refresh
   // then drops them from `tasks.now`. Deriving avoids a sync effect.
@@ -77,10 +79,10 @@ export function MyTasks({ currentUser, tasks }: { currentUser: Profile; tasks: M
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <div style={{ minWidth: 0 }}>
             <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 22, color: "#F5F1E8", letterSpacing: "-0.01em" }}>
-              My Tasks
+              {t("mytasks.title")}
             </h1>
             <p style={{ fontWeight: 300, fontSize: 13, color: "rgba(245,241,232,0.58)", marginTop: 4 }}>
-              Tasks assigned to you, ready to work.
+              {t("mytasks.subtitle")}
             </p>
           </div>
           <Avatar initials={currentUser.initials} size={30} color={currentUser.avatar_color} />
@@ -92,8 +94,8 @@ export function MyTasks({ currentUser, tasks }: { currentUser: Profile; tasks: M
         {isEmpty ? (
           <div style={{ textAlign: "center", marginTop: 52 }}>
             <div style={{ fontSize: 34, color: "#3D7A5F", lineHeight: 1 }}>✓</div>
-            <div style={{ fontWeight: 600, fontSize: 16, color: "#0B1B2B", marginTop: 10 }}>You&apos;re all caught up.</div>
-            <div style={{ fontWeight: 400, fontSize: 13.5, color: "rgba(11,27,43,0.5)", marginTop: 4 }}>No tasks are assigned to you right now.</div>
+            <div style={{ fontWeight: 600, fontSize: 16, color: "#0B1B2B", marginTop: 10 }}>{t("mytasks.empty")}</div>
+            <div style={{ fontWeight: 400, fontSize: 13.5, color: "rgba(11,27,43,0.5)", marginTop: 4 }}>{t("mytasks.emptyHint")}</div>
           </div>
         ) : (
           <>
@@ -114,15 +116,15 @@ export function MyTasks({ currentUser, tasks }: { currentUser: Profile; tasks: M
                     </span>
                     {head.hold_status ? (
                       <span style={{ flexShrink: 0, background: "#C8922A", color: "#fff", borderRadius: 999, padding: "3px 9px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        On Hold
+                        {t("status.onHold")}
                       </span>
                     ) : head.overdue ? (
                       <span style={{ flexShrink: 0, background: "#C84A2F", color: "#fff", borderRadius: 999, padding: "3px 9px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        Overdue
+                        {t("mytasks.overdue")}
                       </span>
                     ) : null}
                     <span style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: "rgba(11,27,43,0.5)" }}>
-                      {group.length} {group.length === 1 ? "task" : "tasks"}
+                      {tp("mytasks.tasksHere", group.length)}
                     </span>
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" style={{ flexShrink: 0, color: "rgba(11,27,43,0.4)", transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
                       <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -145,7 +147,7 @@ export function MyTasks({ currentUser, tasks }: { currentUser: Profile; tasks: M
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 6px 2px" }}>
                         <StageTag stageIdx={head.stage_idx} />
                         <Link href={`/turns/${head.turn_id}`} style={{ fontSize: 12.5, fontWeight: 500, color: "#2E6B5E", textDecoration: "none" }}>
-                          Open unit →
+                          {t("mytasks.openUnit")}
                         </Link>
                       </div>
                     </div>
@@ -157,7 +159,7 @@ export function MyTasks({ currentUser, tasks }: { currentUser: Profile; tasks: M
             {tasks.later.length > 0 && (
               <div style={{ marginTop: 18 }}>
                 <div style={{ fontWeight: 600, fontSize: 10.5, textTransform: "uppercase", letterSpacing: "0.14em", color: "rgba(11,27,43,0.42)", marginBottom: 8 }}>
-                  Coming up
+                  {t("mytasks.comingUp")}
                 </div>
                 {tasks.later.map((item) => (
                   <Link

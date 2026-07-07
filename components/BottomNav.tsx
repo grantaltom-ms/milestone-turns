@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useT } from "@/lib/i18n-context";
 
 type Tab = "board" | "tasks";
 
@@ -26,9 +27,10 @@ function TasksIcon({ active }: { active: boolean }) {
 }
 
 export function BottomNav({ active }: { active: Tab }) {
+  const { t } = useT();
   const items: { key: Tab; href: string; label: string; Icon: typeof BoardIcon }[] = [
-    { key: "board", href: "/", label: "Board", Icon: BoardIcon },
-    { key: "tasks", href: "/my-tasks", label: "My Tasks", Icon: TasksIcon },
+    { key: "board", href: "/", label: t("nav.board"), Icon: BoardIcon },
+    { key: "tasks", href: "/my-tasks", label: t("nav.myTasks"), Icon: TasksIcon },
   ];
 
   return (

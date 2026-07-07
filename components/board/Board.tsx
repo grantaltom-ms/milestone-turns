@@ -181,7 +181,7 @@ export function Board({
       </div>
 
       {/* Building list — each building is a card that expands to its units */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 88px", background: "#F5F1E8" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px 32px", background: "#F5F1E8" }}>
         {buildings.length === 0 ? (
           <p style={{ textAlign: "center", fontWeight: 400, fontSize: 14, color: "rgba(11,27,43,0.38)", marginTop: 40 }}>
             {t("board.empty")}
