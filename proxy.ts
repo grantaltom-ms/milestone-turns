@@ -32,8 +32,17 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  // Refresh session (rotates tokens if needed)
-  const { data: { user } } = await supabase.auth.getUser();
+  // Refresh session (rotates tokens if needed). A stale/expired refresh token
+  // makes getUser throw (AuthApiError: refresh_token_not_found) — that's just a
+  // logged-out visitor, so treat any failure as "no user" instead of letting it
+  // surface as a runtime error.
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    user = null;
+  }
 
   if (!user) {
     // Not authenticated → redirect to /login with ?next= for return
