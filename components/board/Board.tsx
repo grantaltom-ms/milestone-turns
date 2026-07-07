@@ -250,10 +250,7 @@ export function Board({
           })
         )}
       </div>
-<<<<<<< HEAD
 
-=======
->>>>>>> origin/claude/my-tasks
       <BottomNav active="board" />
     </div>
   );
