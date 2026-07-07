@@ -59,6 +59,7 @@ export async function toggleTaskAction(taskId: string, done: boolean) {
     });
   }
   revalidatePath("/");
+  revalidatePath("/my-tasks");
 }
 
 export async function setTaskAssigneeAction(taskId: string, assignee: string) {

@@ -7,6 +7,7 @@ import { STAGE_FILTER_CATEGORY, STAGES, type ProfileMember } from "@/lib/stages"
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import type { DashboardStats, Profile, Turn } from "@/lib/supabase/types";
 import type { TurnMeta } from "@/lib/turn-meta";
+import { BottomNav } from "@/components/BottomNav";
 import { UserHeader } from "@/components/UserHeader";
 import { DashboardHeader } from "./DashboardHeader";
 import { TurnCard } from "./TurnCard";
@@ -266,6 +267,7 @@ export function Board({
           ))
         )}
       </div>
+      <BottomNav active="board" />
     </div>
   );
 }

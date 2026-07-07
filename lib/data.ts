@@ -1,5 +1,5 @@
 import { getServerSupabase } from "@/lib/supabase/server";
-import type { DashboardStats, Profile, PropertyRow, Task, TaskNote, Turn, TurnWithTasks } from "@/lib/supabase/types";
+import type { DashboardStats, HoldStatus, Profile, PropertyRow, Task, TaskNote, Turn, TurnWithTasks } from "@/lib/supabase/types";
 import type { ProfileMember } from "@/lib/stages";
 
 async function fetchPropertyNames(ids: number[]): Promise<Map<number, string>> {
@@ -312,4 +312,82 @@ export function computeDashboardStats(turns: Turn[]): DashboardStats {
         ) / 10;
 
   return { inTurn, overdue, onHold, ready, avgDays };
+}
+
+export type MyTaskItem = {
+  task_id: string;
+  turn_id: string;
+  name: string;
+  stage_idx: number;
+  property_name: string;
+  unit: string;
+  target_date: string;
+  hold_status: HoldStatus | null;
+  overdue: boolean;
+};
+/** now = my open tasks in their turn's CURRENT stage (actionable); later = my
+ *  open tasks queued in future stages. Both exclude skipped stages. */
+export type MyTasksResult = { now: MyTaskItem[]; later: MyTaskItem[] };
+
+/** The current user's own open tasks, across all turns. */
+export async function loadMyTasks(initials: string): Promise<MyTasksResult> {
+  const supabase = await getServerSupabase();
+  const [{ data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
+    supabase.from("turns").select("id, property_id, unit, stage_idx, target_date, hold_status, skipped_phases"),
+    supabase
+      .from("turn_tasks")
+      .select("id, turn_id, name, stage_idx")
+      .eq("assignee", initials)
+      .eq("done", false)
+      .eq("removed", false),
+  ]);
+  if (tErr) throw tErr;
+  if (kErr) throw kErr;
+
+  type TurnInfo = { property_id: number; unit: string; stage_idx: number; target_date: string; hold_status: HoldStatus | null; skipped: Set<number> };
+  const turnById = new Map<string, TurnInfo>();
+  for (const t of turns ?? []) {
+    turnById.set(t.id, {
+      property_id: t.property_id,
+      unit: t.unit,
+      stage_idx: t.stage_idx,
+      target_date: t.target_date,
+      hold_status: (t.hold_status as HoldStatus | null) ?? null,
+      skipped: new Set(((t.skipped_phases as number[] | null) ?? [])),
+    });
+  }
+  const names = await fetchPropertyNames((turns ?? []).map((t) => t.property_id));
+
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  const now: MyTaskItem[] = [];
+  const later: MyTaskItem[] = [];
+  for (const k of tasks ?? []) {
+    const turn = turnById.get(k.turn_id);
+    if (!turn) continue;
+    if (turn.skipped.has(k.stage_idx)) continue;
+    const item: MyTaskItem = {
+      task_id: k.id,
+      turn_id: k.turn_id,
+      name: k.name,
+      stage_idx: k.stage_idx,
+      property_name: names.get(turn.property_id) ?? "Property",
+      unit: turn.unit,
+      target_date: turn.target_date,
+      hold_status: turn.hold_status,
+      overdue: turn.target_date < today && turn.stage_idx < 5,
+    };
+    if (k.stage_idx === turn.stage_idx) now.push(item);
+    else if (k.stage_idx > turn.stage_idx) later.push(item);
+    // past-stage open tasks (stage_idx < current) are stragglers — omit.
+  }
+  now.sort(
+    (a, b) =>
+      Number(b.overdue) - Number(a.overdue) ||
+      a.target_date.localeCompare(b.target_date) ||
+      a.unit.localeCompare(b.unit),
+  );
+  later.sort((a, b) => a.target_date.localeCompare(b.target_date) || a.stage_idx - b.stage_idx);
+  return { now, later };
 }
