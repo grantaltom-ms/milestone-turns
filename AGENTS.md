@@ -17,6 +17,11 @@ Every request follows this loop. Do not claim a change is done until it has been
    - **Database/RPC changes:** query Supabase (MCP `execute_sql`) to confirm the state actually changed.
    - **Server/logic changes:** exercise the code path and observe the result.
 
+   **When the preview is unreachable (network-policy fallback).** Some environments run a locked-down egress policy that also blocks the Vercel preview host — a browser navigation fails with `403 to CONNECT` at the proxy (check `curl -sS "$HTTPS_PROXY/__agentproxy/status"`; a `connect_rejected` for the `*.vercel.app` host confirms it). When that happens, live-preview behavioral verification is **not possible from here** — do not silently downgrade to "it builds." Instead:
+   - Do the strongest verification the environment *does* allow: confirm the exact code is committed on the pushed branch (`git show <branch>:<file>`, grep the real wiring), verify DB/RPC state through the Supabase **MCP** (which routes through the MCP server, not the blocked browser), and exercise pure logic directly in Node (e.g. run a translation catalog and assert the output).
+   - **Explicitly report the UI items as ⚠️ not verified behaviorally, with the reason** (network policy blocks the preview), and hand the user the preview link(s) to click through for final confirmation.
+   - The durable fix is to widen the environment's egress policy to allow the preview host so this step can run unattended — surface that to the user rather than quietly skipping verification.
+
 4. **Report per item, honestly.** For each checklist item, state ✅ done (with the evidence — a preview screenshot, a query result) or ⚠️ not verified (with the reason). Never a blanket "all done" that papers over an item you did not actually check. If something could not be verified, say so plainly rather than implying success.
 
 The failure this prevents: shipping a change that compiles but was never actually wired into the UI, and reporting it as complete. "It builds" is not "it works."
