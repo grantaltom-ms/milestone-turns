@@ -317,6 +317,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
               {[
                 [t("detail.vacated"), formatDate(turn.vacate_date)],
                 [t("detail.target"), formatDate(turn.target_date)],
+                ...(turn.move_in_date ? [[t("detail.moveIn"), formatDate(turn.move_in_date)] as [string, string]] : []),
               ].map(([label, value]) => (
                 <div key={label}>
                   <div style={{ fontWeight: 500, fontSize: 9.5, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(245,241,232,0.48)" }}>
@@ -1117,6 +1118,7 @@ function EditTurnSheet({
   const [unit, setUnit] = useState(turn.unit);
   const [vacateDate, setVacateDate] = useState(turn.vacate_date);
   const [targetDate, setTargetDate] = useState(turn.target_date);
+  const [moveInDate, setMoveInDate] = useState(turn.move_in_date ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1129,6 +1131,7 @@ function EditTurnSheet({
         unit: unit.trim(),
         vacate_date: vacateDate,
         target_date: targetDate,
+        move_in_date: moveInDate ? moveInDate : null,
       });
       onClose();
     } catch (e) {
@@ -1188,6 +1191,10 @@ function EditTurnSheet({
           <div>
             <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>{t("edit.targetDate")}</label>
             <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>{t("edit.moveIn")}</label>
+            <input type="date" value={moveInDate} onChange={(e) => setMoveInDate(e.target.value)} style={inputStyle} />
           </div>
         </div>
 

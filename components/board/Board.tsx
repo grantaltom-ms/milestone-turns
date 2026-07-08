@@ -8,13 +8,14 @@ import { getBrowserSupabase } from "@/lib/supabase/browser";
 import type { DashboardStats, Profile, Turn } from "@/lib/supabase/types";
 import type { TurnMeta } from "@/lib/turn-meta";
 import { useT } from "@/lib/i18n-context";
+import { computeUrgency, isAtRisk, byUrgency, type Urgency } from "@/lib/priority";
 import { UserHeader } from "@/components/UserHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { DashboardHeader } from "./DashboardHeader";
 import { TurnCard } from "./TurnCard";
 
-type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "On Hold" | "Overdue";
-const FILTERS: Filter[] = ["All", "Mine", "Office", "Maintenance", "Ready", "On Hold", "Overdue"];
+type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "On Hold" | "Overdue" | "At Risk";
+const FILTERS: Filter[] = ["All", "Mine", "At Risk", "Office", "Maintenance", "Ready", "On Hold", "Overdue"];
 
 export function Board({
   turns, openCounts, currentUser, profiles, mineIds, meta, stats,
@@ -59,10 +60,18 @@ export function Board({
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }, []);
 
+  // Urgency per turn (memoized), used for the At-risk filter and unit ordering.
+  const urgencyById = useMemo(() => {
+    const m = new Map<string, Urgency>();
+    for (const t of turns) m.set(t.id, computeUrgency(t, todayStr));
+    return m;
+  }, [turns, todayStr]);
+
   const visible = useMemo(() => {
     return turns.filter((t) => {
       if (filter === "All") return true;
       if (filter === "Mine") return mineSet.has(t.id);
+      if (filter === "At Risk") return isAtRisk(urgencyById.get(t.id)!);
       if (filter === "On Hold") return t.hold_status != null;
       if (filter === "Overdue") return t.target_date < todayStr && t.stage_idx < 5;
       const cat = STAGE_FILTER_CATEGORY[t.stage_idx];
@@ -71,15 +80,20 @@ export function Board({
       if (filter === "Ready") return cat === "ready";
       return true;
     });
-  }, [turns, filter, mineSet, todayStr]);
+  }, [turns, filter, mineSet, todayStr, urgencyById]);
 
   const onHoldCount = useMemo(() => turns.filter((t) => t.hold_status != null).length, [turns]);
   const overdueCount = useMemo(
     () => turns.filter((t) => t.target_date < todayStr && t.stage_idx < 5).length,
     [turns, todayStr],
   );
+  const atRiskCount = useMemo(
+    () => turns.filter((t) => isAtRisk(urgencyById.get(t.id)!)).length,
+    [turns, urgencyById],
+  );
 
-  // Group the visible units under their building, sorted alphabetically.
+  // Group the visible units under their building (buildings A→Z); within each
+  // building, order units by urgency so the most time-critical rise to the top.
   const buildings = useMemo(() => {
     const buckets = new Map<string, Turn[]>();
     for (const t of visible) {
@@ -88,8 +102,11 @@ export function Board({
       arr.push(t);
       buckets.set(key, arr);
     }
+    for (const arr of buckets.values()) {
+      arr.sort((a, b) => byUrgency({ u: urgencyById.get(a.id)! }, { u: urgencyById.get(b.id)! }));
+    }
     return Array.from(buckets.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [visible]);
+  }, [visible, urgencyById]);
 
   function toggleBuilding(name: string) {
     setOpenBuildings((prev) => {
@@ -154,8 +171,9 @@ export function Board({
             const active = filter === f;
             const isHoldChip = f === "On Hold";
             const isOverdueChip = f === "Overdue";
-            const chipCount = isHoldChip ? onHoldCount : isOverdueChip ? overdueCount : 0;
-            const chipColor = isOverdueChip ? "#C84A2F" : isHoldChip ? "#C8922A" : undefined;
+            const isAtRiskChip = f === "At Risk";
+            const chipCount = isHoldChip ? onHoldCount : isOverdueChip ? overdueCount : isAtRiskChip ? atRiskCount : 0;
+            const chipColor = isOverdueChip ? "#C84A2F" : isHoldChip ? "#C8922A" : isAtRiskChip ? "#C8922A" : undefined;
             return (
               <button key={f} type="button" onClick={() => setFilter(f)}
                 style={{
@@ -241,7 +259,7 @@ export function Board({
                 {open && (
                   <div style={{ marginTop: 8, paddingLeft: 8 }}>
                     {group.map((t) => (
-                      <TurnCard key={t.id} turn={t} openTasks={openCounts[t.id] ?? 0} profiles={profiles} meta={meta[t.id]} />
+                      <TurnCard key={t.id} turn={t} openTasks={openCounts[t.id] ?? 0} profiles={profiles} meta={meta[t.id]} today={todayStr} />
                     ))}
                   </div>
                 )}

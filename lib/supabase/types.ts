@@ -10,6 +10,7 @@ export type Turn = {
   stage_idx: number;
   vacate_date: string;
   target_date: string;
+  move_in_date: string | null;
   assignee: string;
   stage_entered_at: string;
   created_at: string;
@@ -98,4 +99,5 @@ export type DashboardStats = {
   onHold: number;
   ready: number;
   avgDays: number;
+  atRisk: number;
 };

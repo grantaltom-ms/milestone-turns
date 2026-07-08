@@ -3,10 +3,12 @@
 import { useT } from "@/lib/i18n-context";
 import type { DashboardStats } from "@/lib/supabase/types";
 
+type FilterTarget = "Overdue" | "On Hold" | "At Risk";
+
 type TileConfig = {
   key: keyof DashboardStats;
   labelKey: string;
-  filterTarget?: "Overdue" | "On Hold";
+  filterTarget?: FilterTarget;
   activeColor: (val: number) => string;
   isDecimal?: boolean;
 };
@@ -16,6 +18,12 @@ const TILES: TileConfig[] = [
     key: "inTurn",
     labelKey: "tile.inTurn",
     activeColor: () => "#F5F1E8",
+  },
+  {
+    key: "atRisk",
+    labelKey: "tile.atRisk",
+    filterTarget: "At Risk",
+    activeColor: (v) => (v > 0 ? "#C8922A" : "#F5F1E8"),
   },
   {
     key: "onHold",
@@ -35,7 +43,7 @@ export function DashboardHeader({
   onFilterChange,
 }: {
   stats: DashboardStats;
-  onFilterChange: (f: "Overdue" | "On Hold") => void;
+  onFilterChange: (f: FilterTarget) => void;
 }) {
   const { t } = useT();
   return (
