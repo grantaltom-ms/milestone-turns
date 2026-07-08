@@ -329,8 +329,9 @@ export type MyTaskItem = {
  *  open tasks queued in future stages. Both exclude skipped stages. */
 export type MyTasksResult = { now: MyTaskItem[]; later: MyTaskItem[] };
 
-/** The current user's own open tasks, across all turns. */
-export async function loadMyTasks(initials: string): Promise<MyTasksResult> {
+/** The current user's own open tasks, across all turns.
+ *  `visiblePropertyIds` (null = all) limits tasks to buildings the user may see. */
+export async function loadMyTasks(initials: string, visiblePropertyIds?: number[] | null): Promise<MyTasksResult> {
   const supabase = await getServerSupabase();
   const [{ data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase.from("turns").select("id, property_id, unit, stage_idx, target_date, hold_status, skipped_phases"),
@@ -361,11 +362,13 @@ export async function loadMyTasks(initials: string): Promise<MyTasksResult> {
   const d = new Date();
   const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
+  const visibleSet = visiblePropertyIds == null ? null : new Set(visiblePropertyIds);
   const now: MyTaskItem[] = [];
   const later: MyTaskItem[] = [];
   for (const k of tasks ?? []) {
     const turn = turnById.get(k.turn_id);
     if (!turn) continue;
+    if (visibleSet && !visibleSet.has(turn.property_id)) continue; // building not visible to this user
     if (turn.skipped.has(k.stage_idx)) continue;
     const item: MyTaskItem = {
       task_id: k.id,
@@ -390,6 +393,21 @@ export async function loadMyTasks(initials: string): Promise<MyTasksResult> {
   );
   later.sort((a, b) => a.target_date.localeCompare(b.target_date) || a.stage_idx - b.stage_idx);
   return { now, later };
+}
+
+/** Admin loader: map of profile_id → assigned building (property) ids.
+ *  A profile absent from the map has no restriction (sees all buildings). */
+export async function loadAllUserBuildingAccess(): Promise<Record<string, number[]>> {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("user_building_access")
+    .select("profile_id, property_id");
+  if (error) throw error;
+  const map: Record<string, number[]> = {};
+  for (const r of (data ?? []) as { profile_id: string; property_id: number }[]) {
+    (map[r.profile_id] ??= []).push(r.property_id);
+  }
+  return map;
 }
 
 export type StageTaskTemplateItem = { name: string; sort_order: number };

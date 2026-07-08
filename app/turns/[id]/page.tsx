@@ -4,6 +4,7 @@ import { LocaleProvider } from "@/lib/i18n-context";
 import { loadProfiles, loadTaskNotes, loadTurnWithTasks } from "@/lib/data";
 import { loadTurnEvents } from "@/lib/events";
 import { getCurrentProfile } from "@/lib/current-user";
+import { canSeeProperty, getVisiblePropertyIds } from "@/lib/access";
 
 export default async function TurnDetailPage({
   params,
@@ -19,6 +20,10 @@ export default async function TurnDetailPage({
 
   if (!currentUser) redirect("/login");
   if (!turn) notFound();
+
+  // Block opening a turn in a building this user isn't allowed to see.
+  const visible = await getVisiblePropertyIds(currentUser);
+  if (!canSeeProperty(visible, turn.property_id)) notFound();
 
   const [profiles, initialNotes, initialEvents] = await Promise.all([
     loadProfiles(),
