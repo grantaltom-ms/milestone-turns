@@ -105,7 +105,8 @@ export function NewTurnForm({
           New Unit Turn
         </h1>
         <p style={{ fontWeight: 300, fontSize: 13, color: "rgba(245,241,232,0.58)", marginTop: 4 }}>
-          Starts at <strong style={{ color: "#5BAE97", fontWeight: 600 }}>Inspection</strong> with a standard checklist.
+          Starts at <strong style={{ color: "#5BAE97", fontWeight: 600 }}>Inspection</strong>
+          {inspectionDefaults.length > 0 ? " with a standard checklist." : "."}
         </p>
       </div>
 
@@ -178,19 +179,21 @@ export function NewTurnForm({
           )}
         </div>
 
-        <div style={{ background: "rgba(46,107,94,0.09)", border: "1px solid rgba(46,107,94,0.22)", borderRadius: 8, padding: "12px 14px" }}>
-          <div style={{ fontWeight: 600, fontSize: 11.5, color: "#2E6B5E", marginBottom: 7, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-            Inspection checklist (auto-seeded)
-          </div>
-          {inspectionDefaults.map((name) => (
-            <div key={name} style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.62)", padding: "3px 0", display: "flex", gap: 8 }}>
-              <span style={{ color: "#2E6B5E" }}>○</span>{name}
+        {inspectionDefaults.length > 0 && (
+          <div style={{ background: "rgba(46,107,94,0.09)", border: "1px solid rgba(46,107,94,0.22)", borderRadius: 8, padding: "12px 14px" }}>
+            <div style={{ fontWeight: 600, fontSize: 11.5, color: "#2E6B5E", marginBottom: 7, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              Inspection checklist (auto-seeded)
             </div>
-          ))}
-          <div style={{ fontWeight: 400, fontSize: 11.5, color: "rgba(11,27,43,0.4)", marginTop: 8, fontStyle: "italic" }}>
-            All 5 later stages also get their default checklists — visible on the unit's detail page.
+            {inspectionDefaults.map((name) => (
+              <div key={name} style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.62)", padding: "3px 0", display: "flex", gap: 8 }}>
+                <span style={{ color: "#2E6B5E" }}>○</span>{name}
+              </div>
+            ))}
+            <div style={{ fontWeight: 400, fontSize: 11.5, color: "rgba(11,27,43,0.4)", marginTop: 8, fontStyle: "italic" }}>
+              Later stages get their default checklists too — visible on the unit&apos;s detail page.
+            </div>
           </div>
-        </div>
+        )}
 
         {submitError && (
           <div style={{ marginTop: 16, padding: "10px 12px", background: "rgba(196,92,59,0.1)", border: "1px solid rgba(196,92,59,0.3)", borderRadius: 8, fontSize: 13, color: "#8B4A2F" }}>
