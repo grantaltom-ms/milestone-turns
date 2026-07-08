@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getServerSupabase } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/supabase/types";
 
@@ -14,8 +15,11 @@ const DEV_PROFILE: Profile = {
   created_at: new Date(0).toISOString(),
 };
 
-/** Returns the full profile of the signed-in user, or null if not auth'd / no profile yet. */
-export async function getCurrentProfile(): Promise<Profile | null> {
+/** Returns the full profile of the signed-in user, or null if not auth'd / no profile yet.
+ *  Wrapped in React `cache()` so it runs at most once per request even when the
+ *  layout, the page, and child components all read it (avoids duplicate
+ *  auth.getUser() + profiles round trips to Supabase). */
+export const getCurrentProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await getServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return REQUIRE_AUTH ? null : DEV_PROFILE;
@@ -25,7 +29,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
     .eq("id", user.id)
     .maybeSingle();
   return data as Profile | null;
-}
+});
 
 /** Returns just the initials for places that only need that. */
 export async function getCurrentInitials(): Promise<string> {
