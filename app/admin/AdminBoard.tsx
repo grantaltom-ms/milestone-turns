@@ -110,12 +110,20 @@ export function AdminBoard({ stages: initial }: { stages: AdminStage[] }) {
               Admin · Default Tasks
             </h1>
           </div>
-          <Link
-            href="/admin/appfolio"
-            style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "rgba(245,241,232,0.7)", textDecoration: "none", border: "1px solid rgba(245,241,232,0.25)", padding: "5px 12px", borderRadius: 6 }}
-          >
-            AppFolio Sync →
-          </Link>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+            <Link
+              href="/admin/access"
+              style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "rgba(245,241,232,0.7)", textDecoration: "none", border: "1px solid rgba(245,241,232,0.25)", padding: "5px 12px", borderRadius: 6, whiteSpace: "nowrap" }}
+            >
+              Building access →
+            </Link>
+            <Link
+              href="/admin/appfolio"
+              style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "rgba(245,241,232,0.7)", textDecoration: "none", border: "1px solid rgba(245,241,232,0.25)", padding: "5px 12px", borderRadius: 6, whiteSpace: "nowrap" }}
+            >
+              AppFolio Sync →
+            </Link>
+          </div>
         </div>
         <p style={{ fontFamily: "var(--font-sans)", fontSize: 12.5, color: "rgba(245,241,232,0.55)", marginTop: 10, maxWidth: 520, lineHeight: 1.5 }}>
           Drag phases by the handle to set their display order here. Drag tasks to
