@@ -168,6 +168,7 @@ export async function createTurnAction(input: {
   unit: string;
   vacate_date: string;
   target_date: string;
+  move_in_date?: string | null;
   assignee: string;
 }) {
   const supabase = await getServerSupabase();
@@ -182,6 +183,10 @@ export async function createTurnAction(input: {
   if (error) throw error;
 
   if (newTurnId) {
+    // create_turn has no move-in param; set it after the row exists.
+    if (input.move_in_date) {
+      await supabase.from("turns").update({ move_in_date: input.move_in_date }).eq("id", newTurnId as string);
+    }
     const me = await actor();
     await logEvent(newTurnId as string, "created", me);
   }
@@ -312,6 +317,7 @@ export async function updateTurnAction(turnId: string, patch: {
   unit?: string;
   vacate_date?: string;
   target_date?: string;
+  move_in_date?: string | null;
 }) {
   const supabase = await getServerSupabase();
   const { error } = await supabase.from("turns").update(patch).eq("id", turnId);

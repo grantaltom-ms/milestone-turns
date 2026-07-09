@@ -50,6 +50,7 @@ export function NewTurnForm({
   const [unit, setUnit] = useState("");
   const [vacateDate, setVacateDate] = useState("");
   const [targetDate, setTargetDate] = useState("");
+  const [moveInDate, setMoveInDate] = useState("");
   const [assignee, setAssignee] = useState(
     initials.includes(defaultAssignee) ? defaultAssignee : (initials[0] ?? ""),
   );
@@ -74,6 +75,7 @@ export function NewTurnForm({
           unit: normalizedUnit,
           vacate_date: vacateDate,
           target_date: targetDate,
+          move_in_date: moveInDate || null,
           assignee: assignee || "?",
         });
       } catch (err) {
@@ -132,6 +134,11 @@ export function NewTurnForm({
             <label style={LABEL_STYLE(errors.target)}>Target ready</label>
             <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} style={INPUT_STYLE(errors.target)} />
           </div>
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={LABEL_STYLE()}>Move-in date <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+          <input type="date" value={moveInDate} onChange={(e) => setMoveInDate(e.target.value)} style={INPUT_STYLE()} />
         </div>
 
         <div style={{ marginBottom: 20 }}>

@@ -4,20 +4,23 @@ import Link from "next/link";
 import { Avatar } from "@/components/Avatar";
 import { StageTag } from "@/components/StageTag";
 import { useT } from "@/lib/i18n-context";
-import { avatarColorFromProfiles, type ProfileMember } from "@/lib/stages";
+import { avatarColorFromProfiles, formatDate, type ProfileMember } from "@/lib/stages";
 import type { Turn } from "@/lib/supabase/types";
 import type { TurnMeta } from "@/lib/turn-meta";
+import { computeUrgency } from "@/lib/priority";
 
 export function TurnCard({
   turn,
   openTasks,
   profiles,
   meta,
+  today,
 }: {
   turn: Turn;
   openTasks: number;
   profiles: ProfileMember[];
   meta?: TurnMeta;
+  today: string;
 }) {
   const { t, tp, stage } = useT();
   const stageName = stage(turn.stage_idx);
@@ -26,6 +29,19 @@ export function TurnCard({
   const isBlocked = turn.hold_status === "blocked";
   const holdBg = isBlocked ? "#8B4A2F" : "#C8922A";
   const holdLabel = isBlocked ? t("status.blocked") : t("status.onHold");
+
+  // Restrained move-in cue: neutral date always; a single colored clause only
+  // when the turn is actually behind / past its move-in.
+  const urgency = computeUrgency(turn, today);
+  const showMoveIn = !!turn.move_in_date && !isHeld && turn.stage_idx < 5;
+  const accent =
+    urgency.level === "overdue"
+      ? { color: "#C84A2F", text: t("card.pastMoveIn") }
+      : urgency.level === "behind"
+        ? { color: "#C8922A", text: t("card.behind", { n: urgency.behindBy }) }
+        : urgency.level === "tight"
+          ? { color: "#C8922A", text: t("card.tight") }
+          : null;
 
   return (
     <Link
@@ -102,7 +118,17 @@ export function TurnCard({
           {turn.hold_reason}
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: isHeld && turn.hold_reason ? 8 : 9 }}>
+      {showMoveIn && (
+        <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.3 }}>
+          <span style={{ color: "rgba(11,27,43,0.5)", fontWeight: 400 }}>
+            {t("card.moveIn", { date: formatDate(turn.move_in_date!) })}
+          </span>
+          {accent && (
+            <span style={{ color: accent.color, fontWeight: 600 }}> · {accent.text}</span>
+          )}
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: showMoveIn ? 8 : isHeld && turn.hold_reason ? 8 : 9 }}>
         <span style={{ fontWeight: 400, fontSize: 12.5, color: isHeld ? "rgba(11,27,43,0.42)" : openTasks === 0 ? "#3D7A5F" : "rgba(11,27,43,0.48)" }}>
           {openTasks === 0 ? t("card.allDone") : tp("card.tasksLeft", openTasks)}
           {!isHeld && days > 0 && (

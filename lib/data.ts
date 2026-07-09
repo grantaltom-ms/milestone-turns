@@ -1,6 +1,7 @@
 import { getServerSupabase } from "@/lib/supabase/server";
 import type { DashboardStats, HoldStatus, Profile, PropertyRow, Task, TaskNote, Turn, TurnWithTasks } from "@/lib/supabase/types";
 import type { ProfileMember } from "@/lib/stages";
+import { computeUrgency, isAtRisk } from "@/lib/priority";
 
 async function fetchPropertyNames(ids: number[]): Promise<Map<number, string>> {
   if (ids.length === 0) return new Map();
@@ -20,7 +21,7 @@ export async function loadTurns(): Promise<Turn[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("turns")
-    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases")
+    .select("id, property_id, unit, stage_idx, vacate_date, target_date, move_in_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases")
     .order("created_at", { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as Omit<Turn, "property_name">[];
@@ -33,7 +34,7 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   const [{ data: turn, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase
       .from("turns")
-      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases")
+      .select("id, property_id, unit, stage_idx, vacate_date, target_date, move_in_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -303,6 +304,7 @@ export function computeDashboardStats(turns: Turn[]): DashboardStats {
   const overdue = inTurnList.filter((t) => t.target_date < todayStr).length;
   const onHold = turns.filter((t) => t.hold_status != null).length;
   const ready = turns.filter((t) => t.stage_idx === 5).length;
+  const atRisk = turns.filter((t) => isAtRisk(computeUrgency(t, todayStr))).length;
 
   const avgDays =
     inTurn === 0
@@ -311,7 +313,7 @@ export function computeDashboardStats(turns: Turn[]): DashboardStats {
           (inTurnList.reduce((sum, t) => sum + daysSinceDate(t.vacate_date), 0) / inTurn) * 10,
         ) / 10;
 
-  return { inTurn, overdue, onHold, ready, avgDays };
+  return { inTurn, overdue, onHold, ready, avgDays, atRisk };
 }
 
 export type MyTaskItem = {
