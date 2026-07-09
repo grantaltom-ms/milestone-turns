@@ -46,6 +46,7 @@ export type ProfileMember = {
   name: string;
   role: Role;
   avatar_color: string;
+  slack_user_id: string | null;
 };
 
 export function teamOfRole(role: Role): Team {

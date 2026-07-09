@@ -92,7 +92,7 @@ export async function setStageAssigneeAction(turnId: string, assignee: string) {
   const supabase = await getServerSupabase();
 
   const [turnRes, tasksRes] = await Promise.all([
-    supabase.from("turns").update({ assignee }).eq("id", turnId),
+    supabase.from("turns").update({ assignee }).eq("id", turnId).select("unit").maybeSingle(),
     supabase.from("turn_tasks").update({ assignee }).eq("turn_id", turnId),
   ]);
   if (turnRes.error) throw turnRes.error;
@@ -103,6 +103,11 @@ export async function setStageAssigneeAction(turnId: string, assignee: string) {
 
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
+
+  if (turnRes.data) {
+    const { notifyStageAssigned } = await import("@/lib/slack");
+    await notifyStageAssigned({ turnId, unit: turnRes.data.unit, assignee });
+  }
 }
 
 export async function advanceTurnAction(turnId: string) {
@@ -146,7 +151,7 @@ export async function handoffToMaintenanceAction(turnId: string, assignee: strin
   // Assign the stage we actually landed on (advance may auto-jump skipped phases).
   const landed = rpcStageIdx(data, fromStage + 1);
   const [turnRes, taskRes] = await Promise.all([
-    supabase.from("turns").update({ assignee }).eq("id", turnId),
+    supabase.from("turns").update({ assignee }).eq("id", turnId).select("unit").maybeSingle(),
     supabase.from("turn_tasks").update({ assignee }).eq("turn_id", turnId).eq("stage_idx", landed),
   ]);
   if (turnRes.error) throw turnRes.error;
@@ -161,6 +166,11 @@ export async function handoffToMaintenanceAction(turnId: string, assignee: strin
 
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
+
+  if (turnRes.data) {
+    const { notifyHandoff } = await import("@/lib/slack");
+    await notifyHandoff({ turnId, unit: turnRes.data.unit, assignee, stageIdx: landed });
+  }
 }
 
 export async function createTurnAction(input: {
@@ -430,21 +440,29 @@ export async function putTurnOnHoldAction(
   holdReason: string,
 ) {
   const supabase = await getServerSupabase();
-  const { error } = await supabase
+  const reason = holdReason.trim();
+  const { data, error } = await supabase
     .from("turns")
     .update({
       hold_status: holdStatus,
-      hold_reason: holdReason.trim(),
+      hold_reason: reason,
       held_at: new Date().toISOString(),
     })
-    .eq("id", turnId);
+    .eq("id", turnId)
+    .select("unit, assignee")
+    .maybeSingle();
   if (error) throw error;
 
   const me = await actor();
-  await logEvent(turnId, "held", me, { hold_status: holdStatus, reason: holdReason.trim() });
+  await logEvent(turnId, "held", me, { hold_status: holdStatus, reason });
 
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
+
+  if (data) {
+    const { notifyOnHold } = await import("@/lib/slack");
+    await notifyOnHold({ turnId, unit: data.unit, assignee: data.assignee, holdStatus, reason });
+  }
 }
 
 export async function resumeTurnAction(turnId: string) {
