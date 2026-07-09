@@ -113,11 +113,11 @@ export function Board({
       <div style={{ background: "#1A2E44", flexShrink: 0 }}>
         {/* Top bar */}
         <div style={{ padding: "50px 20px 0" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 22, color: "#F5F1E8", letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 14 }}>
+            <h1 style={{ fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 22, color: "#F5F1E8", letterSpacing: "-0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, flexShrink: 1 }}>
               {t("board.title")}
             </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
               <UserHeader profile={currentUser} />
               {currentUser.role === "admin" && (
                 <Link href="/admin" aria-label={t("board.admin")} title={t("board.admin")}
@@ -149,34 +149,38 @@ export function Board({
         <DashboardHeader stats={stats} onFilterChange={(f) => setFilter(f)} />
 
         {/* Filter chips */}
-        <div style={{ display: "flex", gap: 6, padding: "6px 16px 14px", overflowX: "auto" }}>
-          {FILTERS.map((f) => {
-            const active = filter === f;
-            const isHoldChip = f === "On Hold";
-            const isOverdueChip = f === "Overdue";
-            const chipCount = isHoldChip ? onHoldCount : isOverdueChip ? overdueCount : 0;
-            const chipColor = isOverdueChip ? "#C84A2F" : isHoldChip ? "#C8922A" : undefined;
-            return (
-              <button key={f} type="button" onClick={() => setFilter(f)}
-                style={{
-                  padding: "6px 14px", borderRadius: 999,
-                  border: `1.5px solid ${active ? "transparent" : chipColor ? `${chipColor}80` : "rgba(245,241,232,0.3)"}`,
-                  background: active ? (chipColor ?? "#F5F1E8") : "transparent",
-                  color: active ? (chipColor ? "#fff" : "#1A2E44") : chipColor ? chipColor : "rgba(245,241,232,0.8)",
-                  fontFamily: "var(--font-sans)", fontWeight: active ? 600 : 400, fontSize: 13,
-                  cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
-                  display: "flex", alignItems: "center", gap: 5,
-                }}
-              >
-                {t(`board.filter.${f}`)}
-                {chipCount > 0 && (
-                  <span style={{ background: active ? "rgba(255,255,255,0.3)" : `${chipColor}2e`, color: active ? "#fff" : chipColor, borderRadius: 999, padding: "1px 6px", fontSize: 11, fontWeight: 700, lineHeight: 1.4 }}>
-                    {chipCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        <div style={{ position: "relative" }}>
+          {/* Right-fade gradient signals more chips beyond the visible area */}
+          <div aria-hidden="true" style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 40, background: "linear-gradient(to right, transparent, #1A2E44)", pointerEvents: "none", zIndex: 1 }} />
+          <div style={{ display: "flex", gap: 6, padding: "6px 16px 14px", overflowX: "auto", scrollbarWidth: "none" }}>
+            {FILTERS.map((f) => {
+              const active = filter === f;
+              const isHoldChip = f === "On Hold";
+              const isOverdueChip = f === "Overdue";
+              const chipCount = isHoldChip ? onHoldCount : isOverdueChip ? overdueCount : 0;
+              const chipColor = isOverdueChip ? "#C84A2F" : isHoldChip ? "#C8922A" : undefined;
+              return (
+                <button key={f} type="button" onClick={() => setFilter(f)}
+                  style={{
+                    padding: "6px 14px", borderRadius: 999,
+                    border: `1.5px solid ${active ? "transparent" : chipColor ? `${chipColor}80` : "rgba(245,241,232,0.3)"}`,
+                    background: active ? (chipColor ?? "#F5F1E8") : "transparent",
+                    color: active ? (chipColor ? "#fff" : "#1A2E44") : chipColor ? chipColor : "rgba(245,241,232,0.8)",
+                    fontFamily: "var(--font-sans)", fontWeight: active ? 600 : 400, fontSize: 13,
+                    cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+                    display: "flex", alignItems: "center", gap: 5,
+                  }}
+                >
+                  {t(`board.filter.${f}`)}
+                  {chipCount > 0 && (
+                    <span style={{ background: active ? "rgba(255,255,255,0.3)" : `${chipColor}2e`, color: active ? "#fff" : chipColor, borderRadius: 999, padding: "1px 6px", fontSize: 11, fontWeight: 700, lineHeight: 1.4 }}>
+                      {chipCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
