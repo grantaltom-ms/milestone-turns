@@ -24,19 +24,6 @@ export function UserHeader({ profile }: { profile: Profile }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <Avatar initials={profile.initials} size={28} color={profile.avatar_color} />
-      <span
-        style={{
-          fontWeight: 500,
-          fontSize: 13,
-          color: "rgba(245,241,232,0.85)",
-          maxWidth: 100,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {profile.name.split(" ")[0]}
-      </span>
       <button
         type="button"
         onClick={toggleLanguage}
