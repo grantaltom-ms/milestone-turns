@@ -45,6 +45,31 @@ type RentRollRow = {
   rent_ready: string | null;
 };
 
+/** Diagnostic only: returns a few RAW, unfiltered rows straight from the
+ * rent_roll report exactly as AppFolio sends them (no field mapping), so we
+ * can see every column the account's report actually returns — e.g. to
+ * confirm the real name of a "next move-in" column before building against
+ * it. Remove once that's settled. */
+export async function fetchRawRentRollSample(limit = 3): Promise<unknown[]> {
+  const subdomain = process.env.APPFOLIO_SUBDOMAIN;
+  if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
+
+  const resp = await fetch(`https://${subdomain}/api/v2/reports/rent_roll.json`, {
+    method: "POST",
+    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({ paginate_results: true }),
+    cache: "no-store",
+  });
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`AppFolio API error ${resp.status}: ${body}`);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await resp.json();
+  const rows: unknown[] = Array.isArray(data) ? data : (data.results ?? []);
+  return rows.slice(0, limit);
+}
+
 export async function fetchVacantUnits(): Promise<AppfolioVacantUnit[]> {
   const subdomain = process.env.APPFOLIO_SUBDOMAIN;
   if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
