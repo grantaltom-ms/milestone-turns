@@ -65,12 +65,7 @@ export function Detail({
   const [revertOpen, setRevertOpen] = useState(false);
   const [, startTransition] = useTransition();
 
-  // Leads and admins can send a turn back a stage. (Without admin here the
-  // control is invisible to everyone when no lead-role users exist.)
-  const isLead =
-    currentUser.role === "office_lead" ||
-    currentUser.role === "maintenance_lead" ||
-    currentUser.role === "admin";
+  const isLead = true; // all users can send a turn back a stage
 
   const isHeld = turn.hold_status != null;
   const isBlocked = turn.hold_status === "blocked";
