@@ -19,6 +19,9 @@ export type Turn = {
   held_at: string | null;
   // stage_idx values skipped on this turn (display-only / advance bypass)
   skipped_phases: number[];
+  // AppFolio-sourced: scheduled move-in date for the unit's next tenant.
+  // Set once the unit is leased (AppFolio status "Vacant-Rented"); null otherwise.
+  next_move_in: string | null;
 };
 
 export type Task = {
@@ -95,7 +98,7 @@ export type TurnEvent = {
 export type DashboardStats = {
   inTurn: number;
   overdue: number;
-  onHold: number;
   ready: number;
   avgDays: number;
+  moveInSoon: number;
 };

@@ -340,6 +340,30 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
                   </span>
                 ) : null;
               })()}
+              {(() => {
+                if (!turn.next_move_in) return null;
+                const target = new Date(turn.next_move_in + "T00:00:00").getTime();
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                const days = Math.round((target - today) / (1000 * 60 * 60 * 24));
+                if (days < 0) return null;
+                const label = days === 0 ? t("card.moveInToday") : days === 1 ? t("card.moveInTomorrow") : tp("card.daysToMoveIn", days);
+                return (
+                  <span
+                    style={{
+                      background: "#4A7FA5",
+                      color: "#fff",
+                      borderRadius: 999,
+                      padding: "3px 9px",
+                      fontWeight: 600,
+                      fontSize: 11.5,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {label}
+                  </span>
+                );
+              })()}
             </div>
           </div>
           <StageTag stageIdx={turn.stage_idx} lg />

@@ -20,6 +20,12 @@ export interface AppfolioVacantUnit {
   sqft: number | null;
   bd_ba: string | null;
   rent_ready: string | null;
+  /** Scheduled move-in date for the unit's next (already-leased) tenant.
+   * Only populated when status is "Vacant-Rented" — null otherwise. */
+  next_move_in: string | null;
+  days_vacant: number | null;
+  available_on: string | null;
+  unit_turn_target_date: string | null;
 }
 
 function authHeader(): string {
@@ -32,96 +38,30 @@ function authHeader(): string {
   return `Basic ${token}`;
 }
 
-type RentRollRow = {
+type UnitVacancyRow = {
   property_id: number;
   property_name: string;
   unit: string;
   unit_id: number;
-  status: string;
+  unit_status: string;
   last_move_out: string | null;
-  market_rent: string | null;
+  computed_market_rent: string | null;
   sqft: number | null;
-  bd_ba: string | null;
+  bed_and_bath: string | null;
   rent_ready: string | null;
+  next_move_in: string | null;
+  days_vacant: number | null;
+  available_on: string | null;
+  unit_turn_target_date: string | null;
 };
-
-/** Diagnostic only: pages through the full rent_roll report and returns a few
- * RAW rows (no field mapping) for units in the four vacant/notice statuses
- * `fetchVacantUnits()` already cares about — so we can see every column
- * AppFolio actually returns for an upcoming-move-in unit, e.g. to confirm
- * the real name of a "next move-in" column before building against it.
- * Remove once that's settled. */
-export async function fetchRawRentRollSample(limit = 5): Promise<unknown[]> {
-  const subdomain = process.env.APPFOLIO_SUBDOMAIN;
-  if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
-
-  const auth = authHeader();
-  let url: string | null = `https://${subdomain}/api/v2/reports/rent_roll.json`;
-  const matches: unknown[] = [];
-
-  while (url && matches.length < limit) {
-    const resp: Response = await fetch(url, {
-      method: "POST",
-      headers: { Authorization: auth, "Content-Type": "application/json" },
-      body: JSON.stringify({ paginate_results: true }),
-      cache: "no-store",
-    });
-    if (!resp.ok) {
-      const body = await resp.text();
-      throw new Error(`AppFolio API error ${resp.status}: ${body}`);
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const data: any = await resp.json();
-    const pageRows: RentRollRow[] = Array.isArray(data) ? data : (data.results ?? []);
-    for (const r of pageRows) {
-      if (
-        r.status === "Vacant-Unrented" ||
-        r.status === "Vacant-Rented" ||
-        r.status === "Notice-Unrented" ||
-        r.status === "Notice-Rented"
-      ) {
-        matches.push(r);
-        if (matches.length >= limit) break;
-      }
-    }
-    url = typeof data?.next_page_url === "string" ? data.next_page_url : null;
-  }
-
-  return matches;
-}
-
-/** Diagnostic only: returns a few RAW rows straight from the unit_vacancy
- * report (no field mapping). Unlike rent_roll, unit_vacancy is purpose-built
- * for vacant/turning units and reportedly includes a `next_move_in` column —
- * this confirms the real field names/formats with a live sample before we
- * build against it. Remove once that's settled. */
-export async function fetchRawUnitVacancySample(limit = 5): Promise<unknown[]> {
-  const subdomain = process.env.APPFOLIO_SUBDOMAIN;
-  if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
-
-  const resp = await fetch(`https://${subdomain}/api/v2/reports/unit_vacancy.json`, {
-    method: "POST",
-    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
-    body: JSON.stringify({ paginate_results: true }),
-    cache: "no-store",
-  });
-  if (!resp.ok) {
-    const body = await resp.text();
-    throw new Error(`AppFolio API error ${resp.status}: ${body}`);
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data: any = await resp.json();
-  const rows: unknown[] = Array.isArray(data) ? data : (data.results ?? []);
-  return rows.slice(0, limit);
-}
 
 export async function fetchVacantUnits(): Promise<AppfolioVacantUnit[]> {
   const subdomain = process.env.APPFOLIO_SUBDOMAIN;
   if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
 
   const auth = authHeader();
-  let url: string | null = `https://${subdomain}/api/v2/reports/rent_roll.json`;
-  const rows: RentRollRow[] = [];
+  let url: string | null = `https://${subdomain}/api/v2/reports/unit_vacancy.json`;
+  const rows: UnitVacancyRow[] = [];
 
   while (url) {
     const resp: Response = await fetch(url, {
@@ -138,7 +78,7 @@ export async function fetchVacantUnits(): Promise<AppfolioVacantUnit[]> {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data: any = await resp.json();
-    const pageRows: RentRollRow[] = Array.isArray(data)
+    const pageRows: UnitVacancyRow[] = Array.isArray(data)
       ? data
       : (data.results ?? []);
     rows.push(...pageRows);
@@ -147,22 +87,26 @@ export async function fetchVacantUnits(): Promise<AppfolioVacantUnit[]> {
 
   return rows
     .filter(
-      (r): r is RentRollRow & { status: AppfolioUnitStatus } =>
-        r.status === "Vacant-Unrented" ||
-        r.status === "Vacant-Rented" ||
-        r.status === "Notice-Unrented" ||
-        r.status === "Notice-Rented",
+      (r): r is UnitVacancyRow & { unit_status: AppfolioUnitStatus } =>
+        r.unit_status === "Vacant-Unrented" ||
+        r.unit_status === "Vacant-Rented" ||
+        r.unit_status === "Notice-Unrented" ||
+        r.unit_status === "Notice-Rented",
     )
     .map((r) => ({
       property_id: r.property_id,
       property_name: r.property_name,
       unit: r.unit,
       unit_id: r.unit_id,
-      status: r.status,
+      status: r.unit_status,
       last_move_out: r.last_move_out ?? null,
-      market_rent: r.market_rent ?? null,
+      market_rent: r.computed_market_rent ?? null,
       sqft: r.sqft ?? null,
-      bd_ba: r.bd_ba ?? null,
+      bd_ba: r.bed_and_bath ?? null,
       rent_ready: r.rent_ready ?? null,
+      next_move_in: r.next_move_in ?? null,
+      days_vacant: r.days_vacant ?? null,
+      available_on: r.available_on ?? null,
+      unit_turn_target_date: r.unit_turn_target_date ?? null,
     }));
 }

@@ -19,6 +19,7 @@ const en: Dict = {
   "board.title": "Unit Turns",
   "board.filter.All": "All",
   "board.filter.Mine": "Mine",
+  "board.filter.Move-in Soon": "Move-in Soon",
   "board.filter.Office": "Office",
   "board.filter.Maintenance": "Maintenance",
   "board.filter.Ready": "Ready",
@@ -44,7 +45,7 @@ const en: Dict = {
   // dashboard tiles
   "tile.inTurn": "In Turn",
   "tile.overdue": "Overdue",
-  "tile.onHold": "On Hold",
+  "tile.moveInSoon": "<30 Days to Move-in",
   "tile.ready": "Ready",
   "tile.avgDays": "Avg Days",
 
@@ -53,6 +54,10 @@ const en: Dict = {
   "card.tasksLeft_one": "{n} task left",
   "card.tasksLeft_other": "{n} tasks left",
   "card.daysInStage": "{n}d in {stage}",
+  "card.moveInToday": "Move-in today",
+  "card.moveInTomorrow": "Move-in tomorrow",
+  "card.daysToMoveIn_one": "{n} day to move-in",
+  "card.daysToMoveIn_other": "{n} days to move-in",
   "status.onHold": "On Hold",
   "status.blocked": "Blocked",
 
@@ -250,6 +255,7 @@ const es: Dict = {
   "board.title": "Rotación de Unidades",
   "board.filter.All": "Todas",
   "board.filter.Mine": "Mías",
+  "board.filter.Move-in Soon": "Mudanza próxima",
   "board.filter.Office": "Oficina",
   "board.filter.Maintenance": "Mantenimiento",
   "board.filter.Ready": "Listas",
@@ -275,7 +281,7 @@ const es: Dict = {
   // dashboard tiles
   "tile.inTurn": "En rotación",
   "tile.overdue": "Atrasadas",
-  "tile.onHold": "En pausa",
+  "tile.moveInSoon": "<30 días p/mudanza",
   "tile.ready": "Listas",
   "tile.avgDays": "Días prom.",
 
@@ -284,6 +290,10 @@ const es: Dict = {
   "card.tasksLeft_one": "{n} tarea restante",
   "card.tasksLeft_other": "{n} tareas restantes",
   "card.daysInStage": "{n}d en {stage}",
+  "card.moveInToday": "Mudanza hoy",
+  "card.moveInTomorrow": "Mudanza mañana",
+  "card.daysToMoveIn_one": "{n} día p/mudanza",
+  "card.daysToMoveIn_other": "{n} días p/mudanza",
   "status.onHold": "En pausa",
   "status.blocked": "Bloqueada",
 

@@ -37,6 +37,7 @@ export async function createTurnFromAppfolioAction(params: {
   vacateDate: string;
   targetDate: string;
   assignee: string;
+  nextMoveIn?: string | null;
 }) {
   const profile = await requireAdmin();
   const supabase = await getServerSupabase();
@@ -67,7 +68,7 @@ export async function createTurnFromAppfolioAction(params: {
   if (turn?.id) {
     await supabase
       .from("turns")
-      .update({ appfolio_unit_id: params.appfolioUnitId })
+      .update({ appfolio_unit_id: params.appfolioUnitId, next_move_in: params.nextMoveIn ?? null })
       .eq("id", turn.id);
 
     await logEvent(turn.id, "created_from_appfolio", profile.initials, {

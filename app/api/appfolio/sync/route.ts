@@ -69,13 +69,13 @@ export async function POST(req: NextRequest) {
   );
   const { data: activeTurns } = await supabase
     .from("turns")
-    .select("property_id, unit, stage_idx")
+    .select("id, property_id, unit, stage_idx")
     .in("property_id", sbPropertyIds)
     .lt("stage_idx", 5);
 
-  const turnLookup = new Set<string>();
+  const turnLookup = new Map<string, string>();
   for (const t of activeTurns ?? []) {
-    turnLookup.add(`${t.property_id}:${t.unit}`);
+    turnLookup.set(`${t.property_id}:${t.unit}`, t.id);
   }
 
   // Today for fallback vacate/target dates
@@ -88,15 +88,27 @@ export async function POST(req: NextRequest) {
   }
 
   const created: string[] = [];
-  const skipped: string[] = [];
+  const updated: string[] = [];
   const errors: string[] = [];
 
   for (const unit of relevant) {
     const mapping = enabledMap.get(String(unit.property_id))!;
     const key = `${mapping.sb_property_id}:${unit.unit}`;
+    const existingTurnId = turnLookup.get(key);
 
-    if (turnLookup.has(key)) {
-      skipped.push(`${unit.property_name} #${unit.unit}`);
+    if (existingTurnId) {
+      // Never touch anything else here — assignee, dates, notes, and task
+      // state belong to the team once a turn exists. Only next_move_in is
+      // AppFolio-derived and safe to keep in sync.
+      const { error } = await supabase
+        .from("turns")
+        .update({ next_move_in: unit.next_move_in })
+        .eq("id", existingTurnId);
+      if (error) {
+        errors.push(`${unit.property_name} #${unit.unit}: ${error.message}`);
+      } else {
+        updated.push(`${unit.property_name} #${unit.unit}`);
+      }
       continue;
     }
 
@@ -118,10 +130,10 @@ export async function POST(req: NextRequest) {
       if (turn?.id) {
         await supabase
           .from("turns")
-          .update({ appfolio_unit_id: unit.unit_id })
+          .update({ appfolio_unit_id: unit.unit_id, next_move_in: unit.next_move_in })
           .eq("id", turn.id);
         created.push(`${unit.property_name} #${unit.unit}`);
-        turnLookup.add(key); // prevent double-create within same run
+        turnLookup.set(key, turn.id); // prevent double-create within same run
       }
     } catch (e) {
       errors.push(`${unit.property_name} #${unit.unit}: ${e instanceof Error ? e.message : String(e)}`);
@@ -130,8 +142,8 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     created: created.length,
-    skipped: skipped.length,
+    updated: updated.length,
     errors: errors.length,
-    detail: { created, skipped, errors },
+    detail: { created, updated, errors },
   });
 }
