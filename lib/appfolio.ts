@@ -90,6 +90,31 @@ export async function fetchRawRentRollSample(limit = 5): Promise<unknown[]> {
   return matches;
 }
 
+/** Diagnostic only: returns a few RAW rows straight from the unit_vacancy
+ * report (no field mapping). Unlike rent_roll, unit_vacancy is purpose-built
+ * for vacant/turning units and reportedly includes a `next_move_in` column —
+ * this confirms the real field names/formats with a live sample before we
+ * build against it. Remove once that's settled. */
+export async function fetchRawUnitVacancySample(limit = 5): Promise<unknown[]> {
+  const subdomain = process.env.APPFOLIO_SUBDOMAIN;
+  if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
+
+  const resp = await fetch(`https://${subdomain}/api/v2/reports/unit_vacancy.json`, {
+    method: "POST",
+    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+    body: JSON.stringify({ paginate_results: true }),
+    cache: "no-store",
+  });
+  if (!resp.ok) {
+    const body = await resp.text();
+    throw new Error(`AppFolio API error ${resp.status}: ${body}`);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await resp.json();
+  const rows: unknown[] = Array.isArray(data) ? data : (data.results ?? []);
+  return rows.slice(0, limit);
+}
+
 export async function fetchVacantUnits(): Promise<AppfolioVacantUnit[]> {
   const subdomain = process.env.APPFOLIO_SUBDOMAIN;
   if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
