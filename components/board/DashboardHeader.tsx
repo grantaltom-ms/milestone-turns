@@ -9,6 +9,7 @@ type TileConfig = {
   filterTarget?: "Overdue" | "Move-in Soon";
   activeColor: (val: number) => string;
   isDecimal?: boolean;
+  labelFontSize?: number;
 };
 
 const TILES: TileConfig[] = [
@@ -22,6 +23,7 @@ const TILES: TileConfig[] = [
     labelKey: "tile.moveInSoon",
     filterTarget: "Move-in Soon",
     activeColor: (v) => (v > 0 ? "#4A7FA5" : "#F5F1E8"),
+    labelFontSize: 9.5,
   },
   {
     key: "ready",
@@ -98,7 +100,7 @@ export function DashboardHeader({
               style={{
                 fontFamily: "var(--font-sans)",
                 fontWeight: 500,
-                fontSize: 10.5,
+                fontSize: tile.labelFontSize ?? 10.5,
                 color: isColored ? "rgba(255,255,255,0.82)" : "rgba(11,27,43,0.52)",
                 letterSpacing: "0.02em",
                 textTransform: "uppercase",
