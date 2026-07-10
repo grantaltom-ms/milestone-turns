@@ -45,7 +45,7 @@ const en: Dict = {
   // dashboard tiles
   "tile.inTurn": "In Turn",
   "tile.overdue": "Overdue",
-  "tile.moveInSoon": "<30 Days to Move-in",
+  "tile.moveInSoon": "Urgent - Rented",
   "tile.ready": "Ready",
   "tile.avgDays": "Avg Days",
 
@@ -281,7 +281,7 @@ const es: Dict = {
   // dashboard tiles
   "tile.inTurn": "En rotación",
   "tile.overdue": "Atrasadas",
-  "tile.moveInSoon": "<30 días p/mudanza",
+  "tile.moveInSoon": "Urgente - Rentado",
   "tile.ready": "Listas",
   "tile.avgDays": "Días prom.",
 
