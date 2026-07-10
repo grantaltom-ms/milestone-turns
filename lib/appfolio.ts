@@ -45,16 +45,61 @@ type RentRollRow = {
   rent_ready: string | null;
 };
 
-/** Diagnostic only: returns a few RAW, unfiltered rows straight from the
- * rent_roll report exactly as AppFolio sends them (no field mapping), so we
- * can see every column the account's report actually returns — e.g. to
- * confirm the real name of a "next move-in" column before building against
- * it. Remove once that's settled. */
-export async function fetchRawRentRollSample(limit = 3): Promise<unknown[]> {
+/** Diagnostic only: pages through the full rent_roll report and returns a few
+ * RAW rows (no field mapping) for units in the four vacant/notice statuses
+ * `fetchVacantUnits()` already cares about — so we can see every column
+ * AppFolio actually returns for an upcoming-move-in unit, e.g. to confirm
+ * the real name of a "next move-in" column before building against it.
+ * Remove once that's settled. */
+export async function fetchRawRentRollSample(limit = 5): Promise<unknown[]> {
   const subdomain = process.env.APPFOLIO_SUBDOMAIN;
   if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
 
-  const resp = await fetch(`https://${subdomain}/api/v2/reports/rent_roll.json`, {
+  const auth = authHeader();
+  let url: string | null = `https://${subdomain}/api/v2/reports/rent_roll.json`;
+  const matches: unknown[] = [];
+
+  while (url && matches.length < limit) {
+    const resp: Response = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: auth, "Content-Type": "application/json" },
+      body: JSON.stringify({ paginate_results: true }),
+      cache: "no-store",
+    });
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`AppFolio API error ${resp.status}: ${body}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await resp.json();
+    const pageRows: RentRollRow[] = Array.isArray(data) ? data : (data.results ?? []);
+    for (const r of pageRows) {
+      if (
+        r.status === "Vacant-Unrented" ||
+        r.status === "Vacant-Rented" ||
+        r.status === "Notice-Unrented" ||
+        r.status === "Notice-Rented"
+      ) {
+        matches.push(r);
+        if (matches.length >= limit) break;
+      }
+    }
+    url = typeof data?.next_page_url === "string" ? data.next_page_url : null;
+  }
+
+  return matches;
+}
+
+/** Diagnostic only: returns a few RAW rows straight from the unit_vacancy
+ * report (no field mapping). Unlike rent_roll, unit_vacancy is purpose-built
+ * for vacant/turning units and reportedly includes a `next_move_in` column —
+ * this confirms the real field names/formats with a live sample before we
+ * build against it. Remove once that's settled. */
+export async function fetchRawUnitVacancySample(limit = 5): Promise<unknown[]> {
+  const subdomain = process.env.APPFOLIO_SUBDOMAIN;
+  if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
+
+  const resp = await fetch(`https://${subdomain}/api/v2/reports/unit_vacancy.json`, {
     method: "POST",
     headers: { Authorization: authHeader(), "Content-Type": "application/json" },
     body: JSON.stringify({ paginate_results: true }),
