@@ -94,6 +94,7 @@ export async function GET(_req: NextRequest) {
       sqft: u.sqft,
       bd_ba: u.bd_ba,
       rent_ready: u.rent_ready,
+      next_move_in: u.next_move_in,
       has_active_turn: turnStage !== undefined,
       active_turn_stage: turnStage ?? null,
       default_assignee: mapping.default_assignee,

@@ -20,7 +20,7 @@ export async function loadTurns(): Promise<Turn[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("turns")
-    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases")
+    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in")
     .order("created_at", { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as Omit<Turn, "property_name">[];
@@ -33,7 +33,7 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   const [{ data: turn, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase
       .from("turns")
-      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases")
+      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -297,12 +297,19 @@ export function computeDashboardStats(turns: Turn[]): DashboardStats {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
+  const in30DaysStr = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
 
   const inTurnList = turns.filter((t) => t.stage_idx < 5);
   const inTurn = inTurnList.length;
   const overdue = inTurnList.filter((t) => t.target_date < todayStr).length;
-  const onHold = turns.filter((t) => t.hold_status != null).length;
   const ready = turns.filter((t) => t.stage_idx === 5).length;
+  const moveInSoon = turns.filter(
+    (t) => t.next_move_in != null && t.next_move_in >= todayStr && t.next_move_in <= in30DaysStr,
+  ).length;
 
   const avgDays =
     inTurn === 0
@@ -311,7 +318,7 @@ export function computeDashboardStats(turns: Turn[]): DashboardStats {
           (inTurnList.reduce((sum, t) => sum + daysSinceDate(t.vacate_date), 0) / inTurn) * 10,
         ) / 10;
 
-  return { inTurn, overdue, onHold, ready, avgDays };
+  return { inTurn, overdue, ready, avgDays, moveInSoon };
 }
 
 export type MyTaskItem = {

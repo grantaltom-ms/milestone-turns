@@ -8,6 +8,14 @@ import { avatarColorFromProfiles, type ProfileMember } from "@/lib/stages";
 import type { Turn } from "@/lib/supabase/types";
 import type { TurnMeta } from "@/lib/turn-meta";
 
+/** Whole-day diff between today and a future date string ("YYYY-MM-DD"). */
+function daysUntil(iso: string): number {
+  const target = new Date(iso + "T00:00:00").getTime();
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  return Math.round((target - today) / (1000 * 60 * 60 * 24));
+}
+
 export function TurnCard({
   turn,
   openTasks,
@@ -26,6 +34,12 @@ export function TurnCard({
   const isBlocked = turn.hold_status === "blocked";
   const holdBg = isBlocked ? "#8B4A2F" : "#C8922A";
   const holdLabel = isBlocked ? t("status.blocked") : t("status.onHold");
+  const moveInDays = turn.next_move_in ? daysUntil(turn.next_move_in) : null;
+  const moveInLabel =
+    moveInDays === 0 ? t("card.moveInToday")
+    : moveInDays === 1 ? t("card.moveInTomorrow")
+    : moveInDays !== null ? tp("card.daysToMoveIn", moveInDays)
+    : null;
 
   return (
     <Link
@@ -82,6 +96,23 @@ export function TurnCard({
             </span>
           ) : (
             <StageTag stageIdx={turn.stage_idx} />
+          )}
+          {moveInLabel !== null && moveInDays !== null && moveInDays >= 0 && (
+            <span
+              style={{
+                background: "#4A7FA5",
+                color: "#fff",
+                borderRadius: 999,
+                padding: "3px 9px",
+                fontFamily: "var(--font-sans)",
+                fontWeight: 600,
+                fontSize: 11.5,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              {moveInLabel}
+            </span>
           )}
         </div>
       </div>

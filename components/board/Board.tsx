@@ -13,8 +13,8 @@ import { BottomNav } from "@/components/BottomNav";
 import { DashboardHeader } from "./DashboardHeader";
 import { TurnCard } from "./TurnCard";
 
-type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "On Hold" | "Overdue";
-const FILTERS: Filter[] = ["All", "Mine", "Office", "Maintenance", "Ready", "On Hold", "Overdue"];
+type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "Move-in Soon" | "On Hold" | "Overdue";
+const FILTERS: Filter[] = ["All", "Mine", "Move-in Soon", "Office", "Maintenance", "Ready", "On Hold", "Overdue"];
 
 export function Board({
   turns, openCounts, currentUser, profiles, mineIds, meta, stats,
@@ -58,11 +58,17 @@ export function Board({
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }, []);
+  const in30DaysStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }, []);
 
   const visible = useMemo(() => {
-    return turns.filter((t) => {
+    const filtered = turns.filter((t) => {
       if (filter === "All") return true;
       if (filter === "Mine") return mineSet.has(t.id);
+      if (filter === "Move-in Soon") return t.next_move_in != null && t.next_move_in >= todayStr && t.next_move_in <= in30DaysStr;
       if (filter === "On Hold") return t.hold_status != null;
       if (filter === "Overdue") return t.target_date < todayStr && t.stage_idx < 5;
       const cat = STAGE_FILTER_CATEGORY[t.stage_idx];
@@ -71,12 +77,21 @@ export function Board({
       if (filter === "Ready") return cat === "ready";
       return true;
     });
-  }, [turns, filter, mineSet, todayStr]);
+    // Soonest move-in first, so the team sees what to prioritize.
+    if (filter === "Move-in Soon") {
+      return [...filtered].sort((a, b) => (a.next_move_in ?? "").localeCompare(b.next_move_in ?? ""));
+    }
+    return filtered;
+  }, [turns, filter, mineSet, todayStr, in30DaysStr]);
 
   const onHoldCount = useMemo(() => turns.filter((t) => t.hold_status != null).length, [turns]);
   const overdueCount = useMemo(
     () => turns.filter((t) => t.target_date < todayStr && t.stage_idx < 5).length,
     [turns, todayStr],
+  );
+  const moveInSoonCount = useMemo(
+    () => turns.filter((t) => t.next_move_in != null && t.next_move_in >= todayStr && t.next_move_in <= in30DaysStr).length,
+    [turns, todayStr, in30DaysStr],
   );
 
   // Group the visible units under their building, sorted alphabetically.
@@ -157,8 +172,9 @@ export function Board({
               const active = filter === f;
               const isHoldChip = f === "On Hold";
               const isOverdueChip = f === "Overdue";
-              const chipCount = isHoldChip ? onHoldCount : isOverdueChip ? overdueCount : 0;
-              const chipColor = isOverdueChip ? "#C84A2F" : isHoldChip ? "#C8922A" : undefined;
+              const isMoveInChip = f === "Move-in Soon";
+              const chipCount = isHoldChip ? onHoldCount : isOverdueChip ? overdueCount : isMoveInChip ? moveInSoonCount : 0;
+              const chipColor = isOverdueChip ? "#C84A2F" : isHoldChip ? "#C8922A" : isMoveInChip ? "#4A7FA5" : undefined;
               return (
                 <button key={f} type="button" onClick={() => setFilter(f)}
                   style={{

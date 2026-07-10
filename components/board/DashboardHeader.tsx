@@ -6,7 +6,7 @@ import type { DashboardStats } from "@/lib/supabase/types";
 type TileConfig = {
   key: keyof DashboardStats;
   labelKey: string;
-  filterTarget?: "Overdue" | "On Hold";
+  filterTarget?: "Overdue" | "Move-in Soon";
   activeColor: (val: number) => string;
   isDecimal?: boolean;
 };
@@ -18,10 +18,10 @@ const TILES: TileConfig[] = [
     activeColor: () => "#F5F1E8",
   },
   {
-    key: "onHold",
-    labelKey: "tile.onHold",
-    filterTarget: "On Hold",
-    activeColor: (v) => (v > 0 ? "#C8922A" : "#F5F1E8"),
+    key: "moveInSoon",
+    labelKey: "tile.moveInSoon",
+    filterTarget: "Move-in Soon",
+    activeColor: (v) => (v > 0 ? "#4A7FA5" : "#F5F1E8"),
   },
   {
     key: "ready",
@@ -35,7 +35,7 @@ export function DashboardHeader({
   onFilterChange,
 }: {
   stats: DashboardStats;
-  onFilterChange: (f: "Overdue" | "On Hold") => void;
+  onFilterChange: (f: "Overdue" | "Move-in Soon") => void;
 }) {
   const { t } = useT();
   return (

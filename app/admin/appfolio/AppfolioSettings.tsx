@@ -17,6 +17,7 @@ type VacantUnit = {
   sqft: number | null;
   bd_ba: string | null;
   rent_ready: string | null;
+  next_move_in: string | null;
   has_active_turn: boolean;
   active_turn_stage: number | null;
   default_assignee: string;
@@ -139,6 +140,7 @@ function CreateTurnRow({
           vacateDate,
           targetDate,
           assignee,
+          nextMoveIn: unit.next_move_in,
         });
         onCreated();
       } catch (e) {
@@ -280,7 +282,7 @@ function VacantUnitsSection({ syncedPropertyIds }: { syncedPropertyIds: number[]
               <thead>
                 <tr style={{ background: "#f0f4f8" }}>
                   <th style={{ padding: "7px 12px", borderBottom: "1px solid #ddd", width: 110 }} />
-                  {["Unit", "Status", "Turn"].map((h) => (
+                  {["Unit", "Status", "Move-in", "Turn"].map((h) => (
                     <th key={h} style={{ padding: "7px 12px", textAlign: "left", fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: "#555", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #ddd" }}>
                       {h}
                     </th>
@@ -314,6 +316,11 @@ function VacantUnitsSection({ syncedPropertyIds }: { syncedPropertyIds: number[]
                       <td style={{ padding: "7px 12px" }}>
                         <span style={{ fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600, color: statusColor(unit.status), background: `${statusColor(unit.status)}15`, padding: "2px 7px", borderRadius: 10, whiteSpace: "nowrap" }}>
                           {unit.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: "7px 12px" }}>
+                        <span style={{ fontFamily: "var(--font-sans)", fontSize: 11.5, color: unit.next_move_in ? "#1A2E44" : "#aaa" }}>
+                          {unit.next_move_in ?? "—"}
                         </span>
                       </td>
                       <td style={{ padding: "7px 12px" }}>
