@@ -66,10 +66,9 @@ export async function createTurnFromAppfolioAction(params: {
 
   const turn = Array.isArray(data) ? data[0] : data;
   if (turn?.id) {
-    await supabase
-      .from("turns")
-      .update({ appfolio_unit_id: params.appfolioUnitId, next_move_in: params.nextMoveIn ?? null })
-      .eq("id", turn.id);
+    const patch: Record<string, unknown> = { appfolio_unit_id: params.appfolioUnitId };
+    if (params.nextMoveIn) patch.next_move_in = params.nextMoveIn;
+    await supabase.from("turns").update(patch).eq("id", turn.id);
 
     await logEvent(turn.id, "created_from_appfolio", profile.initials, {
       unit: params.unit,

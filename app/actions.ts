@@ -179,9 +179,9 @@ export async function createTurnAction(input: {
   vacate_date: string;
   target_date: string;
   assignee: string;
+  next_move_in?: string | null;
 }) {
   const supabase = await getServerSupabase();
-  // create_turn RPC returns the new turn id
   const { data: newTurnId, error } = await supabase.rpc("create_turn", {
     p_property_id: input.property_id,
     p_unit: input.unit,
@@ -192,6 +192,9 @@ export async function createTurnAction(input: {
   if (error) throw error;
 
   if (newTurnId) {
+    if (input.next_move_in) {
+      await supabase.from("turns").update({ next_move_in: input.next_move_in }).eq("id", newTurnId as string);
+    }
     const me = await actor();
     await logEvent(newTurnId as string, "created", me);
   }
@@ -322,6 +325,7 @@ export async function updateTurnAction(turnId: string, patch: {
   unit?: string;
   vacate_date?: string;
   target_date?: string;
+  next_move_in?: string | null;
 }) {
   const supabase = await getServerSupabase();
   const { error } = await supabase.from("turns").update(patch).eq("id", turnId);

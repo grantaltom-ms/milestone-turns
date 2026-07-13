@@ -1136,6 +1136,7 @@ function EditTurnSheet({
   const [unit, setUnit] = useState(turn.unit);
   const [vacateDate, setVacateDate] = useState(turn.vacate_date);
   const [targetDate, setTargetDate] = useState(turn.target_date);
+  const [nextMoveIn, setNextMoveIn] = useState(turn.next_move_in ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1148,6 +1149,7 @@ function EditTurnSheet({
         unit: unit.trim(),
         vacate_date: vacateDate,
         target_date: targetDate,
+        next_move_in: nextMoveIn || null,
       });
       onClose();
     } catch (e) {
@@ -1207,6 +1209,17 @@ function EditTurnSheet({
           <div>
             <label style={{ display: "block", fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)", marginBottom: 4 }}>{t("edit.targetDate")}</label>
             <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <label style={{ fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)" }}>Move-in date <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+              {nextMoveIn && (
+                <button type="button" onClick={() => setNextMoveIn("")} style={{ background: "transparent", border: "none", fontSize: 11.5, color: "rgba(11,27,43,0.4)", cursor: "pointer", padding: 0 }}>
+                  Clear
+                </button>
+              )}
+            </div>
+            <input type="date" value={nextMoveIn} onChange={(e) => setNextMoveIn(e.target.value)} style={inputStyle} />
           </div>
         </div>
 
