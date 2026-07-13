@@ -18,7 +18,7 @@ const en: Dict = {
   // board
   "board.title": "Unit Turns",
   "board.filter.All": "All",
-  "board.filter.Mine": "Mine",
+  "board.filter.Mine": "My Tasks",
   "board.filter.Move-in Soon": "Move-in Soon",
   "board.filter.Office": "Office",
   "board.filter.Maintenance": "Maintenance",
