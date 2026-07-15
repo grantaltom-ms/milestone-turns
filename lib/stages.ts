@@ -47,6 +47,7 @@ export type ProfileMember = {
   role: Role;
   avatar_color: string;
   slack_user_id: string | null;
+  assignable_all_phases: boolean;
 };
 
 export function teamOfRole(role: Role): Team {
@@ -54,7 +55,7 @@ export function teamOfRole(role: Role): Team {
 }
 
 export function membersOnTeam(team: Team, profiles: ProfileMember[]): ProfileMember[] {
-  return profiles.filter((p) => teamOfRole(p.role) === team);
+  return profiles.filter((p) => p.assignable_all_phases || teamOfRole(p.role) === team);
 }
 
 export function avatarColorFromProfiles(initials: string, profiles: ProfileMember[]): string {

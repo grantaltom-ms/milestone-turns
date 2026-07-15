@@ -126,7 +126,7 @@ export async function loadProfiles(): Promise<ProfileMember[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, name, email, role, initials, avatar_color, slack_user_id")
+    .select("id, name, email, role, initials, avatar_color, slack_user_id, assignable_all_phases")
     .order("name", { ascending: true });
   if (error) throw error;
   return (data ?? []) as ProfileMember[];
