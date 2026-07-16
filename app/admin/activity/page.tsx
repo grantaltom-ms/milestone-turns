@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentProfile } from "@/lib/current-user";
-import { loadGlobalActivity } from "@/lib/data";
+import { loadGlobalActivity, loadProperties } from "@/lib/data";
 import { ActivityFeedBoard } from "./ActivityFeedBoard";
 
 export const metadata = { title: "Activity Feed — Admin" };
@@ -10,7 +10,10 @@ export default async function ActivityFeedPage() {
   if (!profile) redirect("/login");
   if (profile.role !== "admin") redirect("/");
 
-  const events = await loadGlobalActivity();
+  const [events, buildings] = await Promise.all([
+    loadGlobalActivity(),
+    loadProperties(),
+  ]);
 
-  return <ActivityFeedBoard events={events} />;
+  return <ActivityFeedBoard events={events} buildings={buildings} />;
 }

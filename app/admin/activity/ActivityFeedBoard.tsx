@@ -1,20 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Avatar } from "@/components/Avatar";
 import { colorForInitials, describeEvent, relativeTime } from "@/lib/activity-format";
 import { useT } from "@/lib/i18n-context";
-import type { GlobalActivityEvent } from "@/lib/supabase/types";
+import type { GlobalActivityEvent, PropertyRow } from "@/lib/supabase/types";
 
 const PAGE_SIZE = 30;
+const ALL_BUILDINGS = "All buildings";
 
-export function ActivityFeedBoard({ events }: { events: GlobalActivityEvent[] }) {
+export function ActivityFeedBoard({ events, buildings }: { events: GlobalActivityEvent[]; buildings: PropertyRow[] }) {
   const tFns = useT();
   const { t } = tFns;
   const [shown, setShown] = useState(PAGE_SIZE);
-  const visible = events.slice(0, shown);
-  const hasMore = shown < events.length;
+  const [building, setBuilding] = useState(ALL_BUILDINGS);
+
+  const filtered = useMemo(
+    () => (building === ALL_BUILDINGS ? events : events.filter((e) => e.property_name === building)),
+    [events, building],
+  );
+  const visible = filtered.slice(0, shown);
+  const hasMore = shown < filtered.length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -29,13 +36,36 @@ export function ActivityFeedBoard({ events }: { events: GlobalActivityEvent[] })
         <p style={{ fontWeight: 300, fontSize: 13, color: "rgba(245,241,232,0.6)", marginTop: 4, lineHeight: 1.45 }}>
           Every action across all properties and units, most recent first.
         </p>
+
+        <select
+          value={building}
+          onChange={(e) => { setBuilding(e.target.value); setShown(PAGE_SIZE); }}
+          style={{
+            marginTop: 12,
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "9px 11px",
+            borderRadius: 8,
+            border: "1px solid rgba(245,241,232,0.25)",
+            background: "rgba(245,241,232,0.08)",
+            color: "#F5F1E8",
+            fontFamily: "var(--font-sans)",
+            fontSize: 13.5,
+            fontWeight: 500,
+          }}
+        >
+          <option value={ALL_BUILDINGS} style={{ color: "#0B1B2B" }}>{ALL_BUILDINGS}</option>
+          {buildings.map((b) => (
+            <option key={b.id} value={b.name} style={{ color: "#0B1B2B" }}>{b.name}</option>
+          ))}
+        </select>
       </div>
 
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 40px", background: "#F5F1E8" }}>
-        {events.length === 0 ? (
+        {filtered.length === 0 ? (
           <p style={{ textAlign: "center", fontWeight: 400, fontSize: 14, color: "rgba(11,27,43,0.38)", marginTop: 40 }}>
-            No activity yet.
+            {building === ALL_BUILDINGS ? "No activity yet." : `No recent activity at ${building}.`}
           </p>
         ) : (
           <div
@@ -118,7 +148,7 @@ export function ActivityFeedBoard({ events }: { events: GlobalActivityEvent[] })
               textUnderlineOffset: 2,
             }}
           >
-            Show {Math.min(PAGE_SIZE, events.length - shown)} more
+            Show {Math.min(PAGE_SIZE, filtered.length - shown)} more
           </button>
         )}
       </div>
