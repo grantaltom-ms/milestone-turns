@@ -1,8 +1,6 @@
 export type PropertyLookup = Map<string, number>; // normalized name → property_id
 
-// CSV columns we read (matches AppFolio "Unit Vacancy Detail" export). Others
-// in the file (Bed/Bath, Sqft, Unit Status, Rent Ready, Days Vacant, Next Move In)
-// are ignored.
+// CSV columns we read (matches AppFolio "Unit Vacancy Detail" export).
 export const REQUIRED_COLUMNS = [
   "property name",
   "unit",
@@ -16,7 +14,6 @@ export const IGNORED_COLUMNS = [
   "unit status",
   "rent ready",
   "days vacant",
-  "next move in",
 ] as const;
 
 export type RawRow = {
@@ -24,6 +21,7 @@ export type RawRow = {
   unit: string;           // ← "Unit"
   vacate_date: string;    // ← "Last Move Out"
   target_date: string;    // ← "Available On"
+  next_move_in?: string;  // ← "Next Move In" (optional)
   unit_status?: string;   // optional context for the preview row
 };
 

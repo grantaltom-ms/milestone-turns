@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ created: 0, message: "No vacant units at enabled buildings" });
   }
 
-  // Load existing active turns to avoid duplicates
+  // Load existing active turns — used both for dedup and next_move_in updates
   const sbPropertyIds = Array.from(
     new Set(relevant.map((u) => enabledMap.get(String(u.property_id))!.sb_property_id)),
   );
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     .in("property_id", sbPropertyIds)
     .lt("stage_idx", 5);
 
-  const turnLookup = new Map<string, string>();
+  const turnLookup = new Map<string, string>(); // key → turn id
   for (const t of activeTurns ?? []) {
     turnLookup.set(`${t.property_id}:${t.unit}`, t.id);
   }
@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
 
   const created: string[] = [];
   const updated: string[] = [];
+  const skipped: string[] = [];
   const errors: string[] = [];
 
   for (const unit of relevant) {
@@ -97,17 +98,19 @@ export async function POST(req: NextRequest) {
     const existingTurnId = turnLookup.get(key);
 
     if (existingTurnId) {
-      // Never touch anything else here — assignee, dates, notes, and task
-      // state belong to the team once a turn exists. Only next_move_in is
-      // AppFolio-derived and safe to keep in sync.
-      const { error } = await supabase
-        .from("turns")
-        .update({ next_move_in: unit.next_move_in })
-        .eq("id", existingTurnId);
-      if (error) {
-        errors.push(`${unit.property_name} #${unit.unit}: ${error.message}`);
+      // Turn already exists — update next_move_in if AppFolio has one, touch nothing else
+      if (unit.next_move_in) {
+        try {
+          await supabase
+            .from("turns")
+            .update({ next_move_in: unit.next_move_in })
+            .eq("id", existingTurnId);
+          updated.push(`${unit.property_name} #${unit.unit}`);
+        } catch (e) {
+          errors.push(`update ${unit.property_name} #${unit.unit}: ${e instanceof Error ? e.message : String(e)}`);
+        }
       } else {
-        updated.push(`${unit.property_name} #${unit.unit}`);
+        skipped.push(`${unit.property_name} #${unit.unit}`);
       }
       continue;
     }
@@ -128,10 +131,9 @@ export async function POST(req: NextRequest) {
 
       const turn = Array.isArray(data) ? data[0] : data;
       if (turn?.id) {
-        await supabase
-          .from("turns")
-          .update({ appfolio_unit_id: unit.unit_id, next_move_in: unit.next_move_in })
-          .eq("id", turn.id);
+        const patch: Record<string, unknown> = { appfolio_unit_id: unit.unit_id };
+        if (unit.next_move_in) patch.next_move_in = unit.next_move_in;
+        await supabase.from("turns").update(patch).eq("id", turn.id);
         created.push(`${unit.property_name} #${unit.unit}`);
         turnLookup.set(key, turn.id); // prevent double-create within same run
       }
@@ -143,7 +145,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     created: created.length,
     updated: updated.length,
+    skipped: skipped.length,
     errors: errors.length,
-    detail: { created, updated, errors },
+    detail: { created, updated, skipped, errors },
   });
 }
