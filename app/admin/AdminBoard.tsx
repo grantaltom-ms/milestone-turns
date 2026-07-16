@@ -129,6 +129,12 @@ export function AdminBoard({ stages: initial }: { stages: AdminStage[] }) {
             >
               Slack notifications →
             </Link>
+            <Link
+              href="/admin/activity"
+              style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "rgba(245,241,232,0.7)", textDecoration: "none", border: "1px solid rgba(245,241,232,0.25)", padding: "5px 12px", borderRadius: 6, whiteSpace: "nowrap" }}
+            >
+              Activity feed →
+            </Link>
           </div>
         </div>
         <p style={{ fontFamily: "var(--font-sans)", fontSize: 12.5, color: "rgba(245,241,232,0.55)", marginTop: 10, maxWidth: 520, lineHeight: 1.5 }}>

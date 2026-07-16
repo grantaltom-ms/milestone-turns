@@ -95,6 +95,14 @@ export type TurnEvent = {
   created_at: string;
 };
 
+// TurnEvent enriched with the turn's building/unit context, for the
+// cross-turn admin activity feed (per-turn views already have this context).
+export type GlobalActivityEvent = TurnEvent & {
+  unit: string;
+  property_name: string;
+  stage_idx: number;
+};
+
 export type DashboardStats = {
   inTurn: number;
   overdue: number;

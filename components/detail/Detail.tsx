@@ -323,7 +323,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
                 </div>
               ))}
               {(() => {
-                const meta = computeTurnMeta(turn);
+                const meta = computeTurnMeta(turn, {});
                 return meta.daysInStage > 0 ? (
                   <span
                     style={{

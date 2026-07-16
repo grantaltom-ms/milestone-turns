@@ -160,7 +160,7 @@ const en: Dict = {
 
   // board — main-specific chrome
   "board.filter.On Hold": "On Hold",
-  "board.filter.Overdue": "Overdue",
+  "board.filter.Stale - Not Ready": "Stale - Not Ready",
   "board.allBuildings": "All Buildings",
   "board.import": "Import CSV",
   "common.signOut": "Sign out",
@@ -396,7 +396,7 @@ const es: Dict = {
 
   // board — main-specific chrome
   "board.filter.On Hold": "En pausa",
-  "board.filter.Overdue": "Atrasadas",
+  "board.filter.Stale - Not Ready": "Estancado - No listo",
   "board.allBuildings": "Todos los edificios",
   "board.import": "Importar CSV",
   "common.signOut": "Salir",

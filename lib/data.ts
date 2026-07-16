@@ -1,5 +1,5 @@
 import { getServerSupabase } from "@/lib/supabase/server";
-import type { DashboardStats, HoldStatus, Profile, PropertyRow, Task, TaskNote, Turn, TurnWithTasks } from "@/lib/supabase/types";
+import type { DashboardStats, GlobalActivityEvent, HoldStatus, Profile, PropertyRow, Task, TaskNote, Turn, TurnEvent, TurnWithTasks } from "@/lib/supabase/types";
 import type { ProfileMember } from "@/lib/stages";
 
 async function fetchPropertyNames(ids: number[]): Promise<Map<number, string>> {
@@ -451,4 +451,56 @@ export async function loadStageTaskTemplates(): Promise<StageTaskTemplate[]> {
         .sort((a, b) => a.sort_order - b.sort_order),
     } satisfies StageTaskTemplate;
   });
+}
+
+/** Most recent turn_events timestamp per turn, keyed by turn_id. Backs the
+ *  "Stale - Not Ready" filter (turns with no activity in 7+ days). */
+export async function loadLastActivityMap(): Promise<Record<string, string>> {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from("turn_last_activity")
+    .select("turn_id, last_activity_at");
+  if (error) throw error;
+  const map: Record<string, string> = {};
+  for (const row of data ?? []) map[row.turn_id] = row.last_activity_at;
+  return map;
+}
+
+/** Admin-only: the most recent activity across every turn, all buildings,
+ *  enriched with unit/building context for the global activity feed. */
+export async function loadGlobalActivity(limit = 200): Promise<GlobalActivityEvent[]> {
+  const supabase = await getServerSupabase();
+  const { data: events, error: eErr } = await supabase
+    .from("turn_events")
+    .select("id, turn_id, event_type, actor, payload, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (eErr) throw eErr;
+
+  const turnIds = Array.from(new Set((events ?? []).map((e) => e.turn_id)));
+  if (turnIds.length === 0) return [];
+
+  const { data: turns, error: tErr } = await supabase
+    .from("turns")
+    .select("id, property_id, unit, stage_idx")
+    .in("id", turnIds);
+  if (tErr) throw tErr;
+
+  type TurnInfo = { property_id: number; unit: string; stage_idx: number };
+  const turnById = new Map<string, TurnInfo>();
+  for (const t of turns ?? []) turnById.set(t.id, t);
+  const names = await fetchPropertyNames((turns ?? []).map((t) => t.property_id));
+
+  const out: GlobalActivityEvent[] = [];
+  for (const e of (events ?? []) as TurnEvent[]) {
+    const info = turnById.get(e.turn_id);
+    if (!info) continue; // turn since deleted
+    out.push({
+      ...e,
+      unit: info.unit,
+      stage_idx: info.stage_idx,
+      property_name: names.get(info.property_id) ?? "Property",
+    });
+  }
+  return out;
 }
