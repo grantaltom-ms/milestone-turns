@@ -13,8 +13,8 @@ import { BottomNav } from "@/components/BottomNav";
 import { DashboardHeader } from "./DashboardHeader";
 import { TurnCard } from "./TurnCard";
 
-type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "Move-in Soon" | "On Hold" | "Overdue";
-const FILTERS: Filter[] = ["All", "Mine", "Move-in Soon", "Office", "Maintenance", "Ready", "On Hold", "Overdue"];
+type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "Move-in Soon" | "On Hold" | "Stale - Not Ready";
+const FILTERS: Filter[] = ["All", "Mine", "Move-in Soon", "Office", "Maintenance", "Ready", "On Hold", "Stale - Not Ready"];
 
 export function Board({
   turns, openCounts, currentUser, profiles, mineIds, meta, stats,
@@ -70,7 +70,7 @@ export function Board({
       if (filter === "Mine") return mineSet.has(t.id);
       if (filter === "Move-in Soon") return t.next_move_in != null && t.next_move_in >= todayStr && t.next_move_in <= in30DaysStr;
       if (filter === "On Hold") return t.hold_status != null;
-      if (filter === "Overdue") return t.target_date < todayStr && t.stage_idx < 5;
+      if (filter === "Stale - Not Ready") return meta[t.id]?.isStale ?? false;
       const cat = STAGE_FILTER_CATEGORY[t.stage_idx];
       if (filter === "Office") return cat === "office";
       if (filter === "Maintenance") return cat === "maintenance";
@@ -82,12 +82,12 @@ export function Board({
       return [...filtered].sort((a, b) => (a.next_move_in ?? "").localeCompare(b.next_move_in ?? ""));
     }
     return filtered;
-  }, [turns, filter, mineSet, todayStr, in30DaysStr]);
+  }, [turns, filter, mineSet, todayStr, in30DaysStr, meta]);
 
   const onHoldCount = useMemo(() => turns.filter((t) => t.hold_status != null).length, [turns]);
-  const overdueCount = useMemo(
-    () => turns.filter((t) => t.target_date < todayStr && t.stage_idx < 5).length,
-    [turns, todayStr],
+  const staleCount = useMemo(
+    () => turns.filter((t) => meta[t.id]?.isStale).length,
+    [turns, meta],
   );
   const moveInSoonCount = useMemo(
     () => turns.filter((t) => t.next_move_in != null && t.next_move_in >= todayStr && t.next_move_in <= in30DaysStr).length,
@@ -171,10 +171,10 @@ export function Board({
             {FILTERS.map((f) => {
               const active = filter === f;
               const isHoldChip = f === "On Hold";
-              const isOverdueChip = f === "Overdue";
+              const isStaleChip = f === "Stale - Not Ready";
               const isMoveInChip = f === "Move-in Soon";
-              const chipCount = isHoldChip ? onHoldCount : isOverdueChip ? overdueCount : isMoveInChip ? moveInSoonCount : 0;
-              const chipColor = isOverdueChip ? "#C84A2F" : isHoldChip ? "#C8922A" : isMoveInChip ? "#4A7FA5" : undefined;
+              const chipCount = isHoldChip ? onHoldCount : isStaleChip ? staleCount : isMoveInChip ? moveInSoonCount : 0;
+              const chipColor = isStaleChip ? "#C84A2F" : isHoldChip ? "#C8922A" : isMoveInChip ? "#4A7FA5" : undefined;
               return (
                 <button key={f} type="button" onClick={() => setFilter(f)}
                   style={{

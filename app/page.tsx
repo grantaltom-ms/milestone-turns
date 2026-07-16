@@ -3,7 +3,7 @@ import { Board } from "@/components/board/Board";
 import { LocaleProvider } from "@/lib/i18n-context";
 import { getCurrentProfile } from "@/lib/current-user";
 import { getVisiblePropertyIds } from "@/lib/access";
-import { computeDashboardStats, loadMineSet, loadProfiles, loadTaskCounts, loadTurns } from "@/lib/data";
+import { computeDashboardStats, loadLastActivityMap, loadMineSet, loadProfiles, loadTaskCounts, loadTurns } from "@/lib/data";
 import { computeMetaMap } from "@/lib/turn-meta";
 
 export default async function HomePage() {
@@ -19,9 +19,10 @@ export default async function HomePage() {
   const visible = await getVisiblePropertyIds(currentUser);
   const turns = visible === null ? allTurns : allTurns.filter((t) => visible.includes(t.property_id));
 
-  const [profiles, mineSet] = await Promise.all([
+  const [profiles, mineSet, lastActivity] = await Promise.all([
     loadProfiles(),
     loadMineSet(currentUser.initials),
+    loadLastActivityMap(),
   ]);
 
   const openCounts: Record<string, number> = {};
@@ -37,7 +38,7 @@ export default async function HomePage() {
         currentUser={currentUser}
         profiles={profiles}
         mineIds={Array.from(mineSet)}
-        meta={computeMetaMap(turns)}
+        meta={computeMetaMap(turns, lastActivity)}
         stats={stats}
       />
     </LocaleProvider>
