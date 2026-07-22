@@ -303,10 +303,10 @@ export function computeDashboardStats(turns: Turn[]): DashboardStats {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
 
-  const inTurnList = turns.filter((t) => t.stage_idx < 5);
+  const inTurnList = turns.filter((t) => t.stage_idx < 4);
   const inTurn = inTurnList.length;
   const overdue = inTurnList.filter((t) => t.target_date < todayStr).length;
-  const ready = turns.filter((t) => t.stage_idx === 5).length;
+  const ready = turns.filter((t) => t.stage_idx === 4).length;
   const moveInSoon = turns.filter(
     (t) => t.next_move_in != null && t.next_move_in >= todayStr && t.next_move_in <= in30DaysStr,
   ).length;
@@ -386,7 +386,7 @@ export async function loadMyTasks(initials: string, visiblePropertyIds?: number[
       unit: turn.unit,
       target_date: turn.target_date,
       hold_status: turn.hold_status,
-      overdue: turn.target_date < today && turn.stage_idx < 5,
+      overdue: turn.target_date < today && turn.stage_idx < 4,
     };
     if (k.stage_idx === turn.stage_idx) now.push(item);
     else if (k.stage_idx > turn.stage_idx) later.push(item);

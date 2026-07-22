@@ -48,7 +48,7 @@ export async function createTurnFromAppfolioAction(params: {
     .select("id, stage_idx")
     .eq("property_id", params.propertyId)
     .eq("unit", params.unit)
-    .lt("stage_idx", 5)
+    .lt("stage_idx", 4)
     .maybeSingle();
 
   if (existing) {

@@ -501,10 +501,10 @@ const es: Dict = {
 
 const CATALOG: Record<Locale, Dict> = { en, es };
 
-// Localized stage names, indexed by stage_idx (0–5). Keep in sync with STAGES.
+// Localized stage names, indexed by stage_idx (0–4). Keep in sync with STAGES.
 const STAGE_NAMES: Record<Locale, string[]> = {
-  en: ["Inspection", "Materials", "Painting", "Repairs", "Cleaning", "Ready"],
-  es: ["Inspección", "Materiales", "Pintura", "Reparaciones", "Limpieza", "Lista"],
+  en: ["Inspection", "Materials", "Maintenance Repairs", "Cleaning", "Ready"],
+  es: ["Inspección", "Materiales", "Reparaciones de Mantenimiento", "Limpieza", "Lista"],
 };
 
 export function stageName(locale: Locale, stageIdx: number): string {
