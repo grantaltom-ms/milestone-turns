@@ -51,6 +51,8 @@ export function NewTurnForm({
   const [vacateDate, setVacateDate] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [moveInDate, setMoveInDate] = useState("");
+  const [flooringDate, setFlooringDate] = useState("");
+  const [cleaningDate, setCleaningDate] = useState("");
   const [assignee, setAssignee] = useState(
     initials.includes(defaultAssignee) ? defaultAssignee : (initials[0] ?? ""),
   );
@@ -77,6 +79,8 @@ export function NewTurnForm({
           target_date: targetDate,
           assignee: assignee || "?",
           next_move_in: moveInDate || null,
+          flooring_install_date: flooringDate || null,
+          cleaning_scheduled_date: cleaningDate || null,
         });
       } catch (err) {
         setSubmitError(err instanceof Error ? err.message : "Could not create turn");
@@ -140,6 +144,16 @@ export function NewTurnForm({
         <div style={{ marginBottom: 16 }}>
           <label style={LABEL_STYLE()}>Move-in date <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "rgba(11,27,43,0.4)" }}>(optional — if unit is leased)</span></label>
           <input type="date" value={moveInDate} onChange={(e) => setMoveInDate(e.target.value)} style={INPUT_STYLE()} />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={LABEL_STYLE()}>Flooring install date <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "rgba(11,27,43,0.4)" }}>(optional — if flooring is being replaced)</span></label>
+          <input type="date" value={flooringDate} onChange={(e) => setFlooringDate(e.target.value)} style={INPUT_STYLE()} />
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={LABEL_STYLE()}>Cleaning scheduled date <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "rgba(11,27,43,0.4)" }}>(optional — if no flooring is needed)</span></label>
+          <input type="date" value={cleaningDate} onChange={(e) => setCleaningDate(e.target.value)} style={INPUT_STYLE()} />
         </div>
 
         <div style={{ marginBottom: 20 }}>

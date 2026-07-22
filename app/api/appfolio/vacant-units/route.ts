@@ -70,7 +70,7 @@ export async function GET(_req: NextRequest) {
     .from("turns")
     .select("property_id, unit, stage_idx")
     .in("property_id", sbPropertyIds)
-    .lt("stage_idx", 5);
+    .lt("stage_idx", 4);
 
   // Build lookup: "property_id:unit" → stage_idx
   const turnLookup = new Map<string, number>();

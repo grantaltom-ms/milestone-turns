@@ -3,18 +3,16 @@ export type Team = "office" | "maintenance";
 export type Role = "office_lead" | "office" | "maintenance_lead" | "maintenance";
 
 export const STAGES: readonly Stage[] = [
-  { name: "Inspection", color: "#C8922A" },
-  { name: "Materials",  color: "#697E94" },
-  { name: "Painting",   color: "#8B9BA9" },
-  { name: "Repairs",    color: "#8B4A2F" },
-  { name: "Cleaning",   color: "#4A7FA5" },
-  { name: "Ready",      color: "#3D7A5F" },
+  { name: "Inspection",         color: "#C8922A" },
+  { name: "Materials",          color: "#697E94" },
+  { name: "Maintenance Repairs", color: "#8B4A2F" },
+  { name: "Cleaning",           color: "#4A7FA5" },
+  { name: "Ready",              color: "#3D7A5F" },
 ] as const;
 
 export const STAGE_TEAM: readonly Team[] = [
   "office",
   "office",
-  "maintenance",
   "maintenance",
   "maintenance",
   "maintenance",
@@ -26,17 +24,7 @@ export const STAGE_FILTER_CATEGORY: readonly FilterCategory[] = [
   "office",
   "maintenance",
   "maintenance",
-  "maintenance",
   "ready",
-] as const;
-
-export const DEFAULT_TASKS: readonly (readonly string[])[] = [
-  ["Walk unit with inspector", "Document unit condition", "List all repairs needed", "Get vendor quotes", "Build scope of work"],
-  ["Order paint", "Order replacement parts", "Order cleaning supplies", "Receive materials at unit"],
-  ["Patch walls", "Prime", "Paint walls", "Paint trim", "Touch up"],
-  ["Plumbing fixes", "Electrical fixes", "Replace fixtures", "Replace blinds", "Appliance check"],
-  ["Deep clean kitchen", "Clean bathrooms", "Vacuum & mop floors", "Clean windows", "Remove all debris"],
-  ["Final walkthrough", "Take marketing photos", "Update listing", "Confirm availability date"],
 ] as const;
 
 // ProfileMember: the runtime shape used in assignment pickers (sourced from DB)

@@ -13,7 +13,7 @@ export default async function ImportTurnsPage() {
     loadPropertyLookup(),
     getCurrentProfile(),
     loadProfiles(),
-    supabase.from("turns").select("property_id, unit").lt("stage_idx", 5),
+    supabase.from("turns").select("property_id, unit").lt("stage_idx", 4),
   ]);
 
   if (!currentUser) redirect("/login");

@@ -20,7 +20,7 @@ export async function loadTurns(): Promise<Turn[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("turns")
-    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in")
+    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in, flooring_install_date, cleaning_scheduled_date")
     .order("created_at", { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as Omit<Turn, "property_name">[];
@@ -33,7 +33,7 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   const [{ data: turn, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase
       .from("turns")
-      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in")
+      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in, flooring_install_date, cleaning_scheduled_date")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -303,10 +303,10 @@ export function computeDashboardStats(turns: Turn[]): DashboardStats {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
 
-  const inTurnList = turns.filter((t) => t.stage_idx < 5);
+  const inTurnList = turns.filter((t) => t.stage_idx < 4);
   const inTurn = inTurnList.length;
   const overdue = inTurnList.filter((t) => t.target_date < todayStr).length;
-  const ready = turns.filter((t) => t.stage_idx === 5).length;
+  const ready = turns.filter((t) => t.stage_idx === 4).length;
   const moveInSoon = turns.filter(
     (t) => t.next_move_in != null && t.next_move_in >= todayStr && t.next_move_in <= in30DaysStr,
   ).length;
@@ -386,7 +386,7 @@ export async function loadMyTasks(initials: string, visiblePropertyIds?: number[
       unit: turn.unit,
       target_date: turn.target_date,
       hold_status: turn.hold_status,
-      overdue: turn.target_date < today && turn.stage_idx < 5,
+      overdue: turn.target_date < today && turn.stage_idx < 4,
     };
     if (k.stage_idx === turn.stage_idx) now.push(item);
     else if (k.stage_idx > turn.stage_idx) later.push(item);

@@ -22,6 +22,9 @@ export type Turn = {
   // AppFolio-sourced: scheduled move-in date for the unit's next tenant.
   // Set once the unit is leased (AppFolio status "Vacant-Rented"); null otherwise.
   next_move_in: string | null;
+  // Vendor-scheduled dates, office-entered — see 0025_turns_vendor_dates.sql.
+  flooring_install_date: string | null;
+  cleaning_scheduled_date: string | null;
 };
 
 export type Task = {

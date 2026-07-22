@@ -40,6 +40,18 @@ export function TurnCard({
     : moveInDays === 1 ? t("card.moveInTomorrow")
     : moveInDays !== null ? tp("card.daysToMoveIn", moveInDays)
     : null;
+  const flooringDays = turn.flooring_install_date ? daysUntil(turn.flooring_install_date) : null;
+  const flooringLabel =
+    flooringDays === 0 ? t("card.flooringToday")
+    : flooringDays === 1 ? t("card.flooringTomorrow")
+    : flooringDays !== null ? tp("card.daysToFlooring", flooringDays)
+    : null;
+  const cleaningDays = turn.cleaning_scheduled_date ? daysUntil(turn.cleaning_scheduled_date) : null;
+  const cleaningLabel =
+    cleaningDays === 0 ? t("card.cleaningToday")
+    : cleaningDays === 1 ? t("card.cleaningTomorrow")
+    : cleaningDays !== null ? tp("card.daysToCleaning", cleaningDays)
+    : null;
 
   return (
     <Link
@@ -112,6 +124,40 @@ export function TurnCard({
               }}
             >
               {moveInLabel}
+            </span>
+          )}
+          {flooringLabel !== null && flooringDays !== null && flooringDays >= 0 && (
+            <span
+              style={{
+                background: "#8B4A2F",
+                color: "#fff",
+                borderRadius: 999,
+                padding: "3px 9px",
+                fontFamily: "var(--font-sans)",
+                fontWeight: 600,
+                fontSize: 11.5,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              {flooringLabel}
+            </span>
+          )}
+          {cleaningLabel !== null && cleaningDays !== null && cleaningDays >= 0 && (
+            <span
+              style={{
+                background: "#4A7FA5",
+                color: "#fff",
+                borderRadius: 999,
+                padding: "3px 9px",
+                fontFamily: "var(--font-sans)",
+                fontWeight: 600,
+                fontSize: 11.5,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              {cleaningLabel}
             </span>
           )}
         </div>

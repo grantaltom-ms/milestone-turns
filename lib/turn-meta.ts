@@ -24,7 +24,7 @@ export function computeTurnMeta(turn: Turn, lastActivity: Record<string, string>
   return {
     daysInStage: daysSince(turn.stage_entered_at),
     lastActivityAt,
-    isStale: turn.stage_idx < 5 && daysSince(lastActivityAt) >= STALE_DAYS,
+    isStale: turn.stage_idx < 4 && daysSince(lastActivityAt) >= STALE_DAYS,
   };
 }
 

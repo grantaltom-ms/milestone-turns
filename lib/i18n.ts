@@ -58,6 +58,14 @@ const en: Dict = {
   "card.moveInTomorrow": "Move-in tomorrow",
   "card.daysToMoveIn_one": "{n} day to move-in",
   "card.daysToMoveIn_other": "{n} days to move-in",
+  "card.flooringToday": "Flooring today",
+  "card.flooringTomorrow": "Flooring tomorrow",
+  "card.daysToFlooring_one": "{n} day to flooring",
+  "card.daysToFlooring_other": "{n} days to flooring",
+  "card.cleaningToday": "Cleaning today",
+  "card.cleaningTomorrow": "Cleaning tomorrow",
+  "card.daysToCleaning_one": "{n} day to cleaning",
+  "card.daysToCleaning_other": "{n} days to cleaning",
   "status.onHold": "On Hold",
   "status.blocked": "Blocked",
 
@@ -68,6 +76,8 @@ const en: Dict = {
   "team.office": "Office",
   "team.maintenance": "Maintenance",
   "detail.hold": "Hold",
+  "detail.pastPhaseOpen_one": "{n} open item in {stage}",
+  "detail.pastPhaseOpen_other": "{n} open items in {stage}",
   "detail.back": "Back",
   "detail.resumeToAdvance": "Resume turn to advance →",
   "detail.handoff": "Hand off to Maintenance →",
@@ -294,6 +304,14 @@ const es: Dict = {
   "card.moveInTomorrow": "Mudanza mañana",
   "card.daysToMoveIn_one": "{n} día p/mudanza",
   "card.daysToMoveIn_other": "{n} días p/mudanza",
+  "card.flooringToday": "Piso hoy",
+  "card.flooringTomorrow": "Piso mañana",
+  "card.daysToFlooring_one": "{n} día p/piso",
+  "card.daysToFlooring_other": "{n} días p/piso",
+  "card.cleaningToday": "Limpieza hoy",
+  "card.cleaningTomorrow": "Limpieza mañana",
+  "card.daysToCleaning_one": "{n} día p/limpieza",
+  "card.daysToCleaning_other": "{n} días p/limpieza",
   "status.onHold": "En pausa",
   "status.blocked": "Bloqueada",
 
@@ -304,6 +322,8 @@ const es: Dict = {
   "team.office": "Oficina",
   "team.maintenance": "Mantenimiento",
   "detail.hold": "Pausar",
+  "detail.pastPhaseOpen_one": "{n} pendiente en {stage}",
+  "detail.pastPhaseOpen_other": "{n} pendientes en {stage}",
   "detail.back": "Atrás",
   "detail.resumeToAdvance": "Reanudar para avanzar →",
   "detail.handoff": "Entregar a Mantenimiento →",
@@ -481,10 +501,10 @@ const es: Dict = {
 
 const CATALOG: Record<Locale, Dict> = { en, es };
 
-// Localized stage names, indexed by stage_idx (0–5). Keep in sync with STAGES.
+// Localized stage names, indexed by stage_idx (0–4). Keep in sync with STAGES.
 const STAGE_NAMES: Record<Locale, string[]> = {
-  en: ["Inspection", "Materials", "Painting", "Repairs", "Cleaning", "Ready"],
-  es: ["Inspección", "Materiales", "Pintura", "Reparaciones", "Limpieza", "Lista"],
+  en: ["Inspection", "Materials", "Maintenance Repairs", "Cleaning", "Ready"],
+  es: ["Inspección", "Materiales", "Reparaciones de Mantenimiento", "Limpieza", "Lista"],
 };
 
 export function stageName(locale: Locale, stageIdx: number): string {

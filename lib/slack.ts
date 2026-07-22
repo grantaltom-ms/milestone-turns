@@ -92,6 +92,16 @@ export async function notifyHandoff(payload: HandoffPayload): Promise<void> {
   );
 }
 
+type TaskReopenedPayload = { turnId: string; unit: string; taskName: string; assignee: string; stageIdx: number };
+export async function notifyTaskReopened(payload: TaskReopenedPayload): Promise<void> {
+  const stageName = STAGES[payload.stageIdx]?.name ?? "an earlier phase";
+  await notify(
+    payload.assignee,
+    payload.turnId,
+    `:back: A task was added to *${stageName}* (already completed) for unit *${payload.unit}*: "${payload.taskName}"`,
+  );
+}
+
 type OnHoldPayload = {
   turnId: string;
   unit: string;

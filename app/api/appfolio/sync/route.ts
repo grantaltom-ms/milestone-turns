@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     .from("turns")
     .select("id, property_id, unit, stage_idx")
     .in("property_id", sbPropertyIds)
-    .lt("stage_idx", 5);
+    .lt("stage_idx", 4);
 
   const turnLookup = new Map<string, string>(); // key → turn id
   for (const t of activeTurns ?? []) {
