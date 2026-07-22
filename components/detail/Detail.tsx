@@ -364,6 +364,54 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
                   </span>
                 );
               })()}
+              {(() => {
+                if (!turn.flooring_install_date) return null;
+                const target = new Date(turn.flooring_install_date + "T00:00:00").getTime();
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                const days = Math.round((target - today) / (1000 * 60 * 60 * 24));
+                if (days < 0) return null;
+                const label = days === 0 ? t("card.flooringToday") : days === 1 ? t("card.flooringTomorrow") : tp("card.daysToFlooring", days);
+                return (
+                  <span
+                    style={{
+                      background: "#8B4A2F",
+                      color: "#fff",
+                      borderRadius: 999,
+                      padding: "3px 9px",
+                      fontWeight: 600,
+                      fontSize: 11.5,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {label}
+                  </span>
+                );
+              })()}
+              {(() => {
+                if (!turn.cleaning_scheduled_date) return null;
+                const target = new Date(turn.cleaning_scheduled_date + "T00:00:00").getTime();
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                const days = Math.round((target - today) / (1000 * 60 * 60 * 24));
+                if (days < 0) return null;
+                const label = days === 0 ? t("card.cleaningToday") : days === 1 ? t("card.cleaningTomorrow") : tp("card.daysToCleaning", days);
+                return (
+                  <span
+                    style={{
+                      background: "#4A7FA5",
+                      color: "#fff",
+                      borderRadius: 999,
+                      padding: "3px 9px",
+                      fontWeight: 600,
+                      fontSize: 11.5,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {label}
+                  </span>
+                );
+              })()}
             </div>
           </div>
           <StageTag stageIdx={turn.stage_idx} lg />
@@ -1137,6 +1185,8 @@ function EditTurnSheet({
   const [vacateDate, setVacateDate] = useState(turn.vacate_date);
   const [targetDate, setTargetDate] = useState(turn.target_date);
   const [nextMoveIn, setNextMoveIn] = useState(turn.next_move_in ?? "");
+  const [flooringDate, setFlooringDate] = useState(turn.flooring_install_date ?? "");
+  const [cleaningDate, setCleaningDate] = useState(turn.cleaning_scheduled_date ?? "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1150,6 +1200,8 @@ function EditTurnSheet({
         vacate_date: vacateDate,
         target_date: targetDate,
         next_move_in: nextMoveIn || null,
+        flooring_install_date: flooringDate || null,
+        cleaning_scheduled_date: cleaningDate || null,
       });
       onClose();
     } catch (e) {
@@ -1220,6 +1272,28 @@ function EditTurnSheet({
               )}
             </div>
             <input type="date" value={nextMoveIn} onChange={(e) => setNextMoveIn(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <label style={{ fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)" }}>Flooring install date <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+              {flooringDate && (
+                <button type="button" onClick={() => setFlooringDate("")} style={{ background: "transparent", border: "none", fontSize: 11.5, color: "rgba(11,27,43,0.4)", cursor: "pointer", padding: 0 }}>
+                  Clear
+                </button>
+              )}
+            </div>
+            <input type="date" value={flooringDate} onChange={(e) => setFlooringDate(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <label style={{ fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.55)" }}>Cleaning scheduled date <span style={{ fontWeight: 400, opacity: 0.6 }}>(optional)</span></label>
+              {cleaningDate && (
+                <button type="button" onClick={() => setCleaningDate("")} style={{ background: "transparent", border: "none", fontSize: 11.5, color: "rgba(11,27,43,0.4)", cursor: "pointer", padding: 0 }}>
+                  Clear
+                </button>
+              )}
+            </div>
+            <input type="date" value={cleaningDate} onChange={(e) => setCleaningDate(e.target.value)} style={inputStyle} />
           </div>
         </div>
 

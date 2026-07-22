@@ -20,7 +20,7 @@ export async function loadTurns(): Promise<Turn[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("turns")
-    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in")
+    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in, flooring_install_date, cleaning_scheduled_date")
     .order("created_at", { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as Omit<Turn, "property_name">[];
@@ -33,7 +33,7 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   const [{ data: turn, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase
       .from("turns")
-      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in")
+      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in, flooring_install_date, cleaning_scheduled_date")
       .eq("id", id)
       .maybeSingle(),
     supabase
