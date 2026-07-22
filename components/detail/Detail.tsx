@@ -740,9 +740,9 @@ function StageSection({
   // work); current/future stages remain open to everyone.
   const canEditTasks = !skipped && (interactivity !== "past" || canAddPastPhase);
 
-  const summary = skipped
-    ? t("stage.skipped")
-    : interactivity === "past"
+  // Not rendered when skipped — the "SKIPPED" pill already conveys that.
+  const summary =
+    interactivity === "past"
       ? totalCount > 0
         ? tp("stage.completeN", totalCount)
         : t("stage.complete")
@@ -802,7 +802,8 @@ function StageSection({
             }}
           >
             {!skipped && interactivity === "past" && "✓ "}
-            {stageIdx + 1}. {stageName} · {summary}
+            {stageIdx + 1}. {stageName}
+            {!skipped && ` · ${summary}`}
           </span>
           {skipped && (
             <span
