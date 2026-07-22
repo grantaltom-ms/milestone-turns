@@ -448,17 +448,22 @@ export async function deleteTaskAction(taskId: string) {
   revalidatePath("/");
 }
 
-/** Skip or un-skip a phase on a turn. Any authenticated user with turn access. */
+/** Skip or un-skip a phase on a turn. Toggling a PAST phase (reopening or
+ * retroactively skipping already-worked stages) is office/admin-only, same
+ * as adding a task to a past phase; current/future stays open to everyone. */
 export async function togglePhaseSkipAction(turnId: string, stageIdx: number, skip: boolean) {
   const supabase = await getServerSupabase();
   const { data: turn, error: readErr } = await supabase
     .from("turns")
-    .select("skipped_phases")
+    .select("skipped_phases, stage_idx")
     .eq("id", turnId)
     .maybeSingle();
   if (readErr) throw readErr;
 
-  const current = new Set<number>(((turn as { skipped_phases: number[] } | null)?.skipped_phases) ?? []);
+  const turnRow = turn as { skipped_phases: number[]; stage_idx: number } | null;
+  if (turnRow != null && stageIdx < turnRow.stage_idx) await requireOfficeOrAdmin();
+
+  const current = new Set<number>(turnRow?.skipped_phases ?? []);
   if (skip) current.add(stageIdx);
   else current.delete(stageIdx);
 
