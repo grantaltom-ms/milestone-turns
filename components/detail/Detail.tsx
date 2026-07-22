@@ -514,7 +514,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
             stageColor={s.color}
             interactivity={interactivityFor(i)}
             skipped={skipped.has(i)}
-            canSkip={!isHeld && interactivityFor(i) !== "past" && i !== STAGES.length - 1}
+            canSkip={!isHeld && (interactivityFor(i) !== "past" || canAddPastPhase) && i !== STAGES.length - 1}
             canAddPastPhase={canAddPastPhase}
             tasks={tasksByStage.get(i) ?? []}
             profiles={profiles}
