@@ -16,6 +16,23 @@ async function actor(): Promise<string> {
   }
 }
 
+/** Office/admin-only guard — used when adding a task to an already-completed
+ * phase (reopening it). Throws if the caller isn't office/office_lead/admin. */
+async function requireOfficeOrAdmin(): Promise<void> {
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const role = (profile as { role?: string } | null)?.role;
+  if (role !== "office" && role !== "office_lead" && role !== "admin") {
+    throw new Error("Only office or admin can add a task to an already-completed phase");
+  }
+}
+
 /** advance_turn returns the updated turn row (object, or 1-element array). Pull
  * its stage_idx, falling back to `fallback` if the shape is unexpected. */
 function rpcStageIdx(data: unknown, fallback: number): number {
@@ -366,14 +383,21 @@ export async function addTaskAction(turnId: string, stageIdx: number, name: stri
       .order("sort_order", { ascending: false })
       .limit(1)
       .maybeSingle(),
-    supabase.from("turns").select("assignee").eq("id", turnId).maybeSingle(),
+    supabase.from("turns").select("assignee, stage_idx, unit").eq("id", turnId).maybeSingle(),
   ]);
+  const turnRow = turn as { assignee: string; stage_idx: number; unit: string } | null;
+  // Adding to an already-completed phase (reopening it) is office/admin-only;
+  // defense-in-depth since the UI already hides the add-task form for others.
+  const isPastPhase = turnRow != null && stageIdx < turnRow.stage_idx;
+  if (isPastPhase) await requireOfficeOrAdmin();
+
   const sortOrder = ((maxTask as { sort_order: number } | null)?.sort_order ?? -1) + 1;
-  const assignee = (turn as { assignee: string } | null)?.assignee ?? "";
+  const assignee = turnRow?.assignee ?? "";
+  const taskName = name.trim();
   const { error } = await supabase.from("turn_tasks").insert({
     turn_id: turnId,
     stage_idx: stageIdx,
-    name: name.trim(),
+    name: taskName,
     assignee,
     done: false,
     sort_order: sortOrder,
@@ -382,10 +406,15 @@ export async function addTaskAction(turnId: string, stageIdx: number, name: stri
   if (error) throw error;
 
   const me = await actor();
-  await logEvent(turnId, "task_added", me, { task_name: name.trim(), stage: stageIdx });
+  await logEvent(turnId, "task_added", me, { task_name: taskName, stage: stageIdx });
 
   revalidatePath(`/turns/${turnId}`);
   revalidatePath("/");
+
+  if (isPastPhase && turnRow) {
+    const { notifyTaskReopened } = await import("@/lib/slack");
+    await notifyTaskReopened({ turnId, unit: turnRow.unit, taskName, assignee, stageIdx });
+  }
 }
 
 /**

@@ -123,6 +123,11 @@ export function Detail({
     return m;
   }, [initialNotes]);
 
+  // Office/admin can add a task to any phase, including ones already passed —
+  // e.g. office notices a missed repair after the turn moved on to Cleaning.
+  const canAddPastPhase =
+    currentUser.role === "office" || currentUser.role === "office_lead" || currentUser.role === "admin";
+
   const currentTasks = tasksByStage.get(turn.stage_idx) ?? [];
   const openCurrent = currentTasks.filter((t) => !t.done).length;
   // No open tasks → ready to advance. Also covers a stage whose tasks were all
@@ -161,8 +166,20 @@ export function Detail({
     return "future";
   }
 
+  // Past phases (already worked through) that still have incomplete tasks —
+  // e.g. office added a repair item back into a phase maintenance already
+  // finished. Surfaced as a banner so it isn't missed.
+  const pastOpenByStage = useMemo(() => {
+    const out: { stageIdx: number; count: number }[] = [];
+    for (let i = 0; i < turn.stage_idx; i++) {
+      if (skipped.has(i)) continue;
+      const openCount = (tasksByStage.get(i) ?? []).filter((t) => !t.done).length;
+      if (openCount > 0) out.push({ stageIdx: i, count: openCount });
+    }
+    return out;
+  }, [tasksByStage, turn.stage_idx, skipped]);
+
   function onToggle(task: Task) {
-    if (task.stage_idx !== turn.stage_idx) return;
     const next = !task.done;
     const nowIso = new Date().toISOString();
     setTasks((prev) =>
@@ -471,6 +488,25 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
           </div>
         )}
 
+        {/* Past-phase open items banner */}
+        {pastOpenByStage.length > 0 && (
+          <div
+            style={{
+              background: "#C8922A14",
+              border: "1.5px solid #C8922A44",
+              borderRadius: 10,
+              padding: "12px 14px",
+              marginBottom: 16,
+            }}
+          >
+            {pastOpenByStage.map(({ stageIdx, count }) => (
+              <div key={stageIdx} style={{ fontWeight: 600, fontSize: 13.5, color: "#9A6D18" }}>
+                ⚠ {tp("detail.pastPhaseOpen", count, { stage: stage(stageIdx) })}
+              </div>
+            ))}
+          </div>
+        )}
+
         {STAGES.map((s, i) => (
           <StageSection
             key={i}
@@ -479,6 +515,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
             interactivity={interactivityFor(i)}
             skipped={skipped.has(i)}
             canSkip={!isHeld && interactivityFor(i) !== "past" && i !== STAGES.length - 1}
+            canAddPastPhase={canAddPastPhase}
             tasks={tasksByStage.get(i) ?? []}
             profiles={profiles}
             notesByTask={notesByStageTask.get(i) ?? new Map()}
@@ -661,6 +698,7 @@ function StageSection({
   interactivity,
   skipped,
   canSkip,
+  canAddPastPhase,
   tasks,
   profiles,
   notesByTask,
@@ -676,6 +714,7 @@ function StageSection({
   interactivity: Interactivity;
   skipped: boolean;
   canSkip: boolean;
+  canAddPastPhase: boolean;
   tasks: Task[];
   profiles: ProfileMember[];
   notesByTask: Map<string, TaskNote[]>;
@@ -688,13 +727,18 @@ function StageSection({
 }) {
   const { t, tp, stage } = useT();
   const stageName = stage(stageIdx);
-  const [open, setOpen] = useState(interactivity === "current" && !skipped);
+  const [open, setOpen] = useState(
+    interactivity === "current"
+      ? !skipped
+      : interactivity === "past" && tasks.some((t) => !t.done),
+  );
   const [newTaskName, setNewTaskName] = useState("");
   const doneCount = tasks.filter((t) => t.done).length;
   const totalCount = tasks.length;
   const canReassign = interactivity !== "past" && !skipped;
-  // Per-turn editing (add/remove tasks) is allowed on any non-past, non-skipped stage.
-  const canEditTasks = interactivity !== "past" && !skipped;
+  // Adding a task to a past phase is office/admin-only (reopening completed
+  // work); current/future stages remain open to everyone.
+  const canEditTasks = !skipped && (interactivity !== "past" || canAddPastPhase);
 
   const summary = skipped
     ? t("stage.skipped")
@@ -915,10 +959,11 @@ function TaskRow({
   onDelete: (taskId: string) => void;
 }) {
   const { t } = useT();
-  const canToggle = interactivity === "current" && !skipped;
-  const canReassign = interactivity !== "past" && !skipped;
-  // Per-turn task removal allowed on any non-past, non-skipped stage.
-  const canDelete = interactivity !== "past" && !skipped;
+  // Toggle/reassign/delete are phase-unrestricted for everyone — so a task
+  // office reopens in a past phase can actually be completed by maintenance.
+  const canToggle = !skipped;
+  const canReassign = !skipped;
+  const canDelete = !skipped;
   const dim = skipped ? 0.55 : interactivity === "current" ? (task.done ? 0.65 : 1) : 0.78;
 
   return (
