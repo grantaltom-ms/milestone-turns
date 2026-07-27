@@ -992,6 +992,7 @@ function TaskRow({
             alignItems: "center",
             gap: 12,
             flex: 1,
+            minWidth: 0,
             cursor: canToggle ? "pointer" : "default",
           }}
         >
@@ -1018,11 +1019,13 @@ function TaskRow({
           <span
             style={{
               flex: 1,
+              minWidth: 0,
               fontWeight: 400,
               fontSize: 14,
               lineHeight: 1.4,
               color: "#0B1B2B",
               textDecoration: task.done || skipped ? "line-through" : "none",
+              overflowWrap: "anywhere",
             }}
           >
             {task.name}
@@ -1238,6 +1241,10 @@ function EditTurnSheet({
   const [error, setError] = useState<string | null>(null);
 
   async function handleSave() {
+    if (vacateDate && targetDate && targetDate < vacateDate) {
+      setError("Target ready date can't be before the vacate date.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
