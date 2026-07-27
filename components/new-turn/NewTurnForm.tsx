@@ -66,6 +66,12 @@ export function NewTurnForm({
     if (!unit.trim()) e.unit = true;
     if (!vacateDate) e.vacate = true;
     if (!targetDate) e.target = true;
+    if (vacateDate && targetDate && targetDate < vacateDate) {
+      e.target = true;
+      setErrors(e);
+      setSubmitError("Target ready date can't be before the vacate date.");
+      return;
+    }
     if (Object.keys(e).length) { setErrors(e); return; }
     setErrors({});
     setSubmitError(null);
