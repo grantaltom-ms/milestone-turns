@@ -392,13 +392,12 @@ export async function addTaskAction(turnId: string, stageIdx: number, name: stri
   if (isPastPhase) await requireOfficeOrAdmin();
 
   const sortOrder = ((maxTask as { sort_order: number } | null)?.sort_order ?? -1) + 1;
-  const assignee = turnRow?.assignee ?? "";
   const taskName = name.trim();
   const { error } = await supabase.from("turn_tasks").insert({
     turn_id: turnId,
     stage_idx: stageIdx,
     name: taskName,
-    assignee,
+    assignee: "", // unassigned until someone picks it up — no default owner
     done: false,
     sort_order: sortOrder,
     is_custom: true, // one-off task added on this specific turn
@@ -413,7 +412,9 @@ export async function addTaskAction(turnId: string, stageIdx: number, name: stri
 
   if (isPastPhase && turnRow) {
     const { notifyTaskReopened } = await import("@/lib/slack");
-    await notifyTaskReopened({ turnId, unit: turnRow.unit, taskName, assignee, stageIdx });
+    // Notify the turn's overall owner — the new task itself has no
+    // per-task assignee until someone explicitly picks it up.
+    await notifyTaskReopened({ turnId, unit: turnRow.unit, taskName, assignee: turnRow.assignee, stageIdx });
   }
 }
 
