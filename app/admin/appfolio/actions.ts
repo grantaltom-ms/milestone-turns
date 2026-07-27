@@ -42,17 +42,18 @@ export async function createTurnFromAppfolioAction(params: {
   const profile = await requireAdmin();
   const supabase = await getServerSupabase();
 
-  // Check for existing active turn for this unit
+  // Check for an existing (non-archived) turn for this unit — a completed
+  // "Ready" turn still counts, since it means the unit is already tracked.
   const { data: existing } = await supabase
     .from("turns")
     .select("id, stage_idx")
     .eq("property_id", params.propertyId)
     .eq("unit", params.unit)
-    .lt("stage_idx", 4)
+    .is("archived_at", null)
     .maybeSingle();
 
   if (existing) {
-    throw new Error(`Unit ${params.unit} already has an active turn (stage ${existing.stage_idx})`);
+    throw new Error(`Unit ${params.unit} already has a turn (stage ${existing.stage_idx})`);
   }
 
   const { data, error } = await supabase.rpc("create_turn", {

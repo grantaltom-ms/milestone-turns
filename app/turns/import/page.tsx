@@ -13,7 +13,7 @@ export default async function ImportTurnsPage() {
     loadPropertyLookup(),
     getCurrentProfile(),
     loadProfiles(),
-    supabase.from("turns").select("property_id, unit").lt("stage_idx", 4),
+    supabase.from("turns").select("property_id, unit").is("archived_at", null),
   ]);
 
   if (!currentUser) redirect("/login");
@@ -24,8 +24,9 @@ export default async function ImportTurnsPage() {
   const nameByIdObj: Record<string, string> = {};
   nameById.forEach((v, k) => { nameByIdObj[String(k)] = v; });
 
-  // Build a set of "property_id:unit" keys for active turns so the preview
-  // can flag rows that would be skipped as duplicates.
+  // Build a set of "property_id:unit" keys for existing (non-archived) turns
+  // — including completed "Ready" ones — so the preview can flag rows that
+  // would be skipped as duplicates.
   const activeUnitKeys = (activeTurnsRes.data ?? []).map(
     (t) => `${t.property_id}:${t.unit}`,
   );

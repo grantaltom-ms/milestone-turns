@@ -21,6 +21,7 @@ export async function loadTurns(): Promise<Turn[]> {
   const { data, error } = await supabase
     .from("turns")
     .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in, flooring_install_date, cleaning_scheduled_date")
+    .is("archived_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
   const rows = (data ?? []) as Omit<Turn, "property_name">[];
@@ -59,7 +60,7 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
 export async function loadTaskCounts(): Promise<Map<string, { open: number; total: number }>> {
   const supabase = await getServerSupabase();
   const [{ data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
-    supabase.from("turns").select("id, stage_idx, skipped_phases"),
+    supabase.from("turns").select("id, stage_idx, skipped_phases").is("archived_at", null),
     supabase.from("turn_tasks").select("turn_id, stage_idx, done, removed"),
   ]);
   if (tErr) throw tErr;
@@ -87,8 +88,8 @@ export async function loadTaskCounts(): Promise<Map<string, { open: number; tota
 export async function loadMineSet(initials: string): Promise<Set<string>> {
   const supabase = await getServerSupabase();
   const [{ data: ownedTurns, error: oErr }, { data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
-    supabase.from("turns").select("id").eq("assignee", initials),
-    supabase.from("turns").select("id, stage_idx, skipped_phases"),
+    supabase.from("turns").select("id").eq("assignee", initials).is("archived_at", null),
+    supabase.from("turns").select("id, stage_idx, skipped_phases").is("archived_at", null),
     supabase.from("turn_tasks").select("turn_id, stage_idx").eq("assignee", initials).eq("done", false).eq("removed", false),
   ]);
   if (oErr) throw oErr;
@@ -341,7 +342,7 @@ export type MyTasksResult = { now: MyTaskItem[]; later: MyTaskItem[] };
 export async function loadMyTasks(initials: string, visiblePropertyIds?: number[] | null): Promise<MyTasksResult> {
   const supabase = await getServerSupabase();
   const [{ data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
-    supabase.from("turns").select("id, property_id, unit, stage_idx, target_date, hold_status, skipped_phases"),
+    supabase.from("turns").select("id, property_id, unit, stage_idx, target_date, hold_status, skipped_phases").is("archived_at", null),
     supabase
       .from("turn_tasks")
       .select("id, turn_id, name, stage_idx")
