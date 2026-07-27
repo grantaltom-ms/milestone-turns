@@ -46,7 +46,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ created: 0, message: "No buildings enabled for sync" });
   }
 
-  // Fetch vacant units from AppFolio (Vacant-* only for auto-sync)
+  // Fetch every vacant/notice unit from AppFolio. The create/update pass
+  // below only acts on Vacant-*, but auto-archiving (further down) needs the
+  // full set — Notice-* means a tenant gave notice, not that the unit is
+  // occupied, so it must NOT be treated as "no longer needs a turn".
   let allUnits;
   try {
     allUnits = await fetchVacantUnits();
@@ -54,27 +57,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "AppFolio fetch failed" }, { status: 502 });
   }
 
+  const sbPropertyIds = Array.from(new Set(Array.from(enabledMap.values()).map((m) => m.sb_property_id)));
+
+  // Every unit AppFolio still lists (any vacant/notice status) at an enabled
+  // property, keyed the same way as turnLookup below.
+  const stillListedKeys = new Set(
+    allUnits
+      .filter((u) => enabledMap.has(String(u.property_id)))
+      .map((u) => `${enabledMap.get(String(u.property_id))!.sb_property_id}:${u.unit}`),
+  );
+
   const vacantUnits = allUnits.filter(
     (u) => u.status === "Vacant-Unrented" || u.status === "Vacant-Rented",
   );
-
   const relevant = vacantUnits.filter((u) => enabledMap.has(String(u.property_id)));
-  if (relevant.length === 0) {
-    return NextResponse.json({ created: 0, message: "No vacant units at enabled buildings" });
-  }
 
-  // Load existing active turns — used both for dedup and next_move_in updates
-  const sbPropertyIds = Array.from(
-    new Set(relevant.map((u) => enabledMap.get(String(u.property_id))!.sb_property_id)),
-  );
-  const { data: activeTurns } = await supabase
+  // Load existing (non-archived) turns at enabled properties — used both for
+  // dedup/next_move_in updates below, and to find Ready turns to archive.
+  // A Ready turn still counts as "existing" (not just stage_idx < terminal),
+  // so sync/CSV import/the admin "+ Create Turn" button never offer to
+  // create a duplicate for a unit that already has a completed turn sitting
+  // there un-archived.
+  const { data: existingTurns } = await supabase
     .from("turns")
     .select("id, property_id, unit, stage_idx")
     .in("property_id", sbPropertyIds)
-    .lt("stage_idx", 4);
+    .is("archived_at", null);
 
   const turnLookup = new Map<string, string>(); // key → turn id
-  for (const t of activeTurns ?? []) {
+  for (const t of existingTurns ?? []) {
     turnLookup.set(`${t.property_id}:${t.unit}`, t.id);
   }
 
@@ -91,6 +102,7 @@ export async function POST(req: NextRequest) {
   const updated: string[] = [];
   const skipped: string[] = [];
   const errors: string[] = [];
+  const archived: string[] = [];
 
   for (const unit of relevant) {
     const mapping = enabledMap.get(String(unit.property_id))!;
@@ -142,11 +154,29 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Auto-archive: a Ready turn whose unit no longer appears anywhere in
+  // AppFolio's vacant/notice feed is presumed occupied (moved into) — clear
+  // it off the active board. Only ever touches turns already at Ready;
+  // in-progress work is never hidden based on an AppFolio field that could
+  // lag reality. Soft delete (archived_at), not destroyed — still reachable
+  // by direct link and in the admin activity feed.
+  const readyTurns = (existingTurns ?? []).filter((t) => t.stage_idx === 4);
+  for (const t of readyTurns) {
+    if (stillListedKeys.has(`${t.property_id}:${t.unit}`)) continue;
+    try {
+      await supabase.from("turns").update({ archived_at: new Date().toISOString() }).eq("id", t.id);
+      archived.push(t.id);
+    } catch (e) {
+      errors.push(`archive ${t.id}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   return NextResponse.json({
     created: created.length,
     updated: updated.length,
     skipped: skipped.length,
+    archived: archived.length,
     errors: errors.length,
-    detail: { created, updated, skipped, errors },
+    detail: { created, updated, skipped, archived, errors },
   });
 }
