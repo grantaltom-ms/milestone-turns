@@ -56,9 +56,16 @@ body {
   body { padding: 0; }
   #app-frame {
     width: 100%;
+    /* 100vh is sized as if the browser's own bottom bar were hidden, so
+       fixed/absolute bottom-anchored content (e.g. the Advance button) ends
+       up hidden behind it on mobile Chrome. 100dvh tracks the actual
+       visible viewport as that bar shows/hides. Keep the 100vh line first
+       as a fallback for browsers that don't support dvh. */
     height: 100vh;
+    height: 100dvh;
     max-height: none;
     min-height: 100vh;
+    min-height: 100dvh;
     margin: 0;
     border-radius: 0;
     box-shadow: none;
