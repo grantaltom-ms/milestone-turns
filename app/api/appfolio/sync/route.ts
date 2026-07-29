@@ -61,12 +61,20 @@ export async function GET(req: NextRequest) {
 
   const sbPropertyIds = Array.from(new Set(Array.from(enabledMap.values()).map((m) => m.sb_property_id)));
 
+  // Normalize unit names for comparison: strip leading #, collapse any
+  // combination of spaces/dashes to a single space, lowercase. This lets
+  // "#4" match "4", "B - 212" match "B 212", etc. — AppFolio drops the #
+  // and omits dashes that manual imports sometimes include.
+  function normalizeUnit(u: string): string {
+    return u.replace(/^#+/, "").replace(/[\s\-]+/g, " ").trim().toLowerCase();
+  }
+
   // Every unit AppFolio still lists (any vacant/notice status) at an enabled
-  // property, keyed the same way as turnLookup below.
+  // property, keyed the same way as turnLookup below (normalized).
   const stillListedKeys = new Set(
     allUnits
       .filter((u) => enabledMap.has(String(u.property_id)))
-      .map((u) => `${enabledMap.get(String(u.property_id))!.sb_property_id}:${u.unit}`),
+      .map((u) => `${enabledMap.get(String(u.property_id))!.sb_property_id}:${normalizeUnit(u.unit)}`),
   );
 
   const vacantUnits = allUnits.filter(
@@ -86,9 +94,9 @@ export async function GET(req: NextRequest) {
     .in("property_id", sbPropertyIds)
     .is("archived_at", null);
 
-  const turnLookup = new Map<string, string>(); // key → turn id
+  const turnLookup = new Map<string, string>(); // normalized key → turn id
   for (const t of existingTurns ?? []) {
-    turnLookup.set(`${t.property_id}:${t.unit}`, t.id);
+    turnLookup.set(`${t.property_id}:${normalizeUnit(t.unit)}`, t.id);
   }
 
   // Today for fallback vacate/target dates
@@ -108,7 +116,7 @@ export async function GET(req: NextRequest) {
 
   for (const unit of relevant) {
     const mapping = enabledMap.get(String(unit.property_id))!;
-    const key = `${mapping.sb_property_id}:${unit.unit}`;
+    const key = `${mapping.sb_property_id}:${normalizeUnit(unit.unit)}`;
     const existingTurnId = turnLookup.get(key);
 
     if (existingTurnId) {
@@ -164,7 +172,7 @@ export async function GET(req: NextRequest) {
   // by direct link and in the admin activity feed.
   const readyTurns = (existingTurns ?? []).filter((t) => t.stage_idx === 4);
   for (const t of readyTurns) {
-    if (stillListedKeys.has(`${t.property_id}:${t.unit}`)) continue;
+    if (stillListedKeys.has(`${t.property_id}:${normalizeUnit(t.unit)}`)) continue;
     try {
       await supabase.from("turns").update({ archived_at: new Date().toISOString() }).eq("id", t.id);
       archived.push(t.id);
