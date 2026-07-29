@@ -14,6 +14,31 @@ import { DashboardHeader } from "./DashboardHeader";
 import { TurnCard } from "./TurnCard";
 
 type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "Move-in Soon" | "On Hold" | "Stale - Not Ready";
+
+/** Parse a unit string into a letter prefix (if any) and trailing number. */
+function parseUnit(unit: string): { prefix: string | null; num: number } {
+  const u = unit.replace(/^#+/, "").trim();
+  const m = u.match(/^([A-Za-z]+)\s*[-\s]*(\d+)/);
+  if (m) return { prefix: m[1].toUpperCase(), num: parseInt(m[2], 10) };
+  const n = u.match(/(\d+)/);
+  return { prefix: null, num: n ? parseInt(n[1], 10) : 0 };
+}
+
+/** Sort turns within one building bucket by unit name.
+ *  Letter-prefixed units (e.g. "B 212"): prefix descending (Z→A), then
+ *  number descending within same prefix. Pure-numeric units: ascending. */
+function sortByUnit(turns: Turn[]): Turn[] {
+  return [...turns].sort((a, b) => {
+    const pa = parseUnit(a.unit);
+    const pb = parseUnit(b.unit);
+    if (pa.prefix !== null && pb.prefix !== null) {
+      const pc = pb.prefix.localeCompare(pa.prefix);
+      return pc !== 0 ? pc : pb.num - pa.num;
+    }
+    if (pa.prefix === null && pb.prefix === null) return pa.num - pb.num;
+    return pa.prefix !== null ? -1 : 1;
+  });
+}
 const FILTERS: Filter[] = ["All", "Mine", "Move-in Soon", "Office", "Maintenance", "Ready", "On Hold", "Stale - Not Ready"];
 
 export function Board({
@@ -103,7 +128,9 @@ export function Board({
       arr.push(t);
       buckets.set(key, arr);
     }
-    return Array.from(buckets.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    return Array.from(buckets.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, group]) => [name, sortByUnit(group)] as [string, Turn[]]);
   }, [visible]);
 
   function toggleBuilding(name: string) {
