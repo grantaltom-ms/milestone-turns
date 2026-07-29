@@ -5,8 +5,10 @@ import { fetchVacantUnits } from "@/lib/appfolio";
 export const dynamic = "force-dynamic";
 
 // Secured with CRON_SECRET bearer token.
-// Vercel Cron sends: Authorization: Bearer <CRON_SECRET>
-export async function POST(req: NextRequest) {
+// Vercel Cron always invokes cron paths with GET (never POST) and sends
+// Authorization: Bearer <CRON_SECRET> — this was previously POST-only, so
+// every scheduled run 405'd before any sync logic ever ran.
+export async function GET(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   if (cronSecret) {
     const auth = req.headers.get("authorization") ?? "";
