@@ -109,23 +109,6 @@ export function TurnCard({
           ) : (
             <StageTag stageIdx={turn.stage_idx} />
           )}
-          {moveInLabel !== null && moveInDays !== null && moveInDays >= 0 && (
-            <span
-              style={{
-                background: "#4A7FA5",
-                color: "#fff",
-                borderRadius: 999,
-                padding: "3px 9px",
-                fontFamily: "var(--font-sans)",
-                fontWeight: 600,
-                fontSize: 11.5,
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              {moveInLabel}
-            </span>
-          )}
           {flooringLabel !== null && flooringDays !== null && flooringDays >= 0 && (
             <span
               style={{
@@ -162,6 +145,24 @@ export function TurnCard({
           )}
         </div>
       </div>
+      {moveInLabel !== null && moveInDays !== null && moveInDays >= 0 && (
+        <div style={{ marginTop: 7 }}>
+          <span
+            style={{
+              background: "#4A7FA5",
+              color: "#fff",
+              borderRadius: 999,
+              padding: "3px 9px",
+              fontFamily: "var(--font-sans)",
+              fontWeight: 600,
+              fontSize: 11.5,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {moveInLabel}
+          </span>
+        </div>
+      )}
       {isHeld && turn.hold_reason && (
         <div
           style={{
