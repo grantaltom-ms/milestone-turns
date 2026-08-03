@@ -1,0 +1,47 @@
+{
+  "skill_name": "appfolio-vercel-sync",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm building a Next.js app on Vercel for our property management company. We use AppFolio and I want to set up a nightly cron that pulls vacant units and creates records in our Supabase database. What do I need to set up? Give me working code for the API route and the AppFolio client.",
+      "expected_output": "Working TypeScript code for: (1) lib/appfolio.ts with Basic auth, paginated fetchReport function, UnitVacancyRow type; (2) app/api/appfolio/sync/route.ts exporting GET (not POST), with CRON_SECRET auth, dedup lookup using normalizeUnit(), create/update pattern; (3) vercel.json cron config; (4) required env vars listed. Must include the GET handler (not POST) and normalizeUnit() function.",
+      "files": [],
+      "assertions": [
+        {"name": "uses-GET-not-POST-for-cron-route", "text": "The sync API route exports async GET (not POST)"},
+        {"name": "includes-CRON_SECRET-auth", "text": "Route checks Authorization: Bearer <CRON_SECRET> header"},
+        {"name": "includes-normalizeUnit-function", "text": "normalizeUnit() strips leading # and normalizes spaces/dashes"},
+        {"name": "correct-basic-auth-encoding", "text": "Auth header uses Buffer.from(id:secret).toString('base64')"},
+        {"name": "pagination-via-next_page_url", "text": "Client follows next_page_url until null"},
+        {"name": "vercel-json-cron-config", "text": "vercel.json crons entry pointing at /api/appfolio/sync is shown"},
+        {"name": "env-vars-listed", "text": "All 4 env vars mentioned: APPFOLIO_CLIENT_ID, APPFOLIO_CLIENT_SECRET, APPFOLIO_SUBDOMAIN, CRON_SECRET"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I already have a working unit vacancy sync. Now I need to pull monthly income statements from AppFolio and store them in a Supabase table called property_financials. The sync should run on the 1st of each month. Show me how to add this to my existing AppFolio integration.",
+      "expected_output": "Code for: (1) IncomeStatementRow TypeScript type; (2) fetchReport call with from_date/to_date; (3) GET route with CRON_SECRET; (4) monthly cron in vercel.json; (5) Supabase upsert. Should note AppFolio property_id ≠ internal IDs.",
+      "files": [],
+      "assertions": [
+        {"name": "income-statement-typescript-type", "text": "IncomeStatementRow type with financial fields like period_amount/ytd_amount"},
+        {"name": "date-range-filters", "text": "fetchReport called with from_date and to_date parameters"},
+        {"name": "monthly-cron-schedule", "text": "vercel.json cron schedule fires on the 1st of each month"},
+        {"name": "GET-handler-for-new-route", "text": "New route uses GET not POST"},
+        {"name": "property-id-mapping-note", "text": "Mentions AppFolio property_id differs from internal DB IDs"},
+        {"name": "supabase-upsert-pattern", "text": "Shows Supabase upsert/insert for property_financials table"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Our AppFolio sync created duplicate turns — we have Iron Ridge unit #4 twice. Once as '#4' from an older import and once as '4' from the sync. How do I fix the dedup logic so this doesn't happen again?",
+      "expected_output": "Root cause explanation (#4 vs 4 exact string mismatch), normalizeUnit() function, applied to all three comparison sites, including dash/space normalization.",
+      "files": [],
+      "assertions": [
+        {"name": "identifies-root-cause", "text": "'#4' !== '4' exact string match failure identified as root cause"},
+        {"name": "provides-normalizeUnit-function", "text": "normalizeUnit() function that strips leading # is provided"},
+        {"name": "covers-dash-space-normalization", "text": "Handles dash/space variants like 'B - 212' vs 'B 212'"},
+        {"name": "all-three-comparison-sites", "text": "Applies normalization to: turnLookup build, incoming-unit key, and stillListedKeys"},
+        {"name": "concrete-code-provided", "text": "Actual code (not just description) is given"}
+      ]
+    }
+  ]
+}
