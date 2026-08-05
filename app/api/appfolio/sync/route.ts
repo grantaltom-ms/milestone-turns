@@ -120,19 +120,20 @@ export async function GET(req: NextRequest) {
     const existingTurnId = turnLookup.get(key);
 
     if (existingTurnId) {
-      // Turn already exists — update next_move_in if AppFolio has one, touch nothing else
-      if (unit.next_move_in) {
-        try {
-          await supabase
-            .from("turns")
-            .update({ next_move_in: unit.next_move_in })
-            .eq("id", existingTurnId);
+      // Turn already exists — sync next_move_in unconditionally so a lease
+      // falling through (Vacant-Rented → Vacant-Unrented) clears the stale date.
+      try {
+        await supabase
+          .from("turns")
+          .update({ next_move_in: unit.next_move_in ?? null })
+          .eq("id", existingTurnId);
+        if (unit.next_move_in) {
           updated.push(`${unit.property_name} #${unit.unit}`);
-        } catch (e) {
-          errors.push(`update ${unit.property_name} #${unit.unit}: ${e instanceof Error ? e.message : String(e)}`);
+        } else {
+          skipped.push(`${unit.property_name} #${unit.unit}`);
         }
-      } else {
-        skipped.push(`${unit.property_name} #${unit.unit}`);
+      } catch (e) {
+        errors.push(`update ${unit.property_name} #${unit.unit}: ${e instanceof Error ? e.message : String(e)}`);
       }
       continue;
     }
