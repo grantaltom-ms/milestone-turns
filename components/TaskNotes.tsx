@@ -40,52 +40,65 @@ export function TaskNotes({
   const [expanded, setExpanded] = useState(false);
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoFile(file);
-    const url = URL.createObjectURL(file);
-    setPhotoPreview(url);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    const previews = files.map((f) => URL.createObjectURL(f));
+    setPhotoFiles((prev) => [...prev, ...files]);
+    setPhotoPreviews((prev) => [...prev, ...previews]);
+    // Reset so the same file can be re-selected if needed
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function clearPhoto() {
-    setPhotoFile(null);
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-    setPhotoPreview(null);
+  function removePhoto(index: number) {
+    setPhotoFiles((prev) => prev.filter((_, i) => i !== index));
+    setPhotoPreviews((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+
+  function clearPhotos() {
+    photoPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setPhotoFiles([]);
+    setPhotoPreviews([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function resetCompose() {
     setDraft("");
-    clearPhoto();
+    clearPhotos();
     setComposing(false);
   }
 
   async function submitNote(e: React.FormEvent) {
     e.preventDefault();
-    if (!draft.trim() && !photoFile) return;
+    if (!draft.trim() && photoFiles.length === 0) return;
     setUploading(true);
 
     try {
-      let photoUrl: string | undefined;
+      const supabase = getBrowserSupabase();
+      const uploadedUrls: string[] = [];
 
-      if (photoFile) {
-        const supabase = getBrowserSupabase();
-        const ext = photoFile.name.split(".").pop() ?? "jpg";
-        const path = `${turnId}/${stageIdx}/${encodeURIComponent(taskName)}/${Date.now()}.${ext}`;
-        const { error: uploadErr } = await supabase.storage
-          .from("task-photos")
-          .upload(path, photoFile, { contentType: photoFile.type, upsert: false });
-        if (uploadErr) throw uploadErr;
-        const { data: { publicUrl } } = supabase.storage.from("task-photos").getPublicUrl(path);
-        photoUrl = publicUrl;
-      }
+      // Upload all photos in parallel
+      await Promise.all(
+        photoFiles.map(async (file) => {
+          const ext = file.name.split(".").pop() ?? "jpg";
+          const path = `${turnId}/${stageIdx}/${encodeURIComponent(taskName)}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: uploadErr } = await supabase.storage
+            .from("task-photos")
+            .upload(path, file, { contentType: file.type, upsert: false });
+          if (uploadErr) throw uploadErr;
+          const { data: { publicUrl } } = supabase.storage.from("task-photos").getPublicUrl(path);
+          uploadedUrls.push(publicUrl);
+        })
+      );
 
       const optimistic: TaskNote = {
         id: `temp-${Date.now()}`,
@@ -95,7 +108,7 @@ export function TaskNotes({
         author_id: "",
         author_name: t("notes.you"),
         content: draft.trim() || null,
-        photo_url: photoUrl ?? null,
+        photo_urls: uploadedUrls,
         created_at: new Date().toISOString(),
       };
 
@@ -110,7 +123,7 @@ export function TaskNotes({
             stage_idx: stageIdx,
             task_name: taskName,
             content: draft.trim() || undefined,
-            photo_url: photoUrl,
+            photo_urls: uploadedUrls,
           });
         } catch {
           setNotes((prev) => prev.filter((n) => n.id !== optimistic.id));
@@ -123,7 +136,7 @@ export function TaskNotes({
     }
   }
 
-  const canSubmit = (draft.trim().length > 0 || !!photoFile) && !uploading;
+  const canSubmit = (draft.trim().length > 0 || photoFiles.length > 0) && !uploading;
 
   return (
     <div style={{ marginTop: 4, paddingLeft: 34 }}>
@@ -154,18 +167,27 @@ export function TaskNotes({
                     <span style={{ fontSize: 11, color: "rgba(11,27,43,0.38)" }}>{formatNoteTime(note.created_at, t)}</span>
                   </div>
                   {note.content && (
-                    <p style={{ margin: 0, fontSize: 13, color: "#0B1B2B", lineHeight: 1.45, whiteSpace: "pre-wrap", marginBottom: note.photo_url ? 6 : 0 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: "#0B1B2B", lineHeight: 1.45, whiteSpace: "pre-wrap", marginBottom: note.photo_urls.length > 0 ? 6 : 0 }}>
                       {note.content}
                     </p>
                   )}
-                  {note.photo_url && (
-                    <a href={note.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: "block" }}>
-                      <img
-                        src={note.photo_url}
-                        alt={t("notes.photoAlt")}
-                        style={{ maxWidth: "100%", borderRadius: 5, marginTop: note.content ? 4 : 0, display: "block" }}
-                      />
-                    </a>
+                  {note.photo_urls.length > 0 && (
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: note.photo_urls.length === 1 ? "1fr" : "repeat(2, 1fr)",
+                      gap: 4,
+                      marginTop: note.content ? 4 : 0,
+                    }}>
+                      {note.photo_urls.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ display: "block" }}>
+                          <img
+                            src={url}
+                            alt={t("notes.photoAlt")}
+                            style={{ width: "100%", borderRadius: 5, display: "block", objectFit: "cover", aspectRatio: note.photo_urls.length === 1 ? "auto" : "1" }}
+                          />
+                        </a>
+                      ))}
+                    </div>
                   )}
                 </div>
               ))}
@@ -193,31 +215,45 @@ export function TaskNotes({
             }}
           />
 
-          {/* Photo preview */}
-          {photoPreview && (
-            <div style={{ position: "relative", marginTop: 6, display: "inline-block" }}>
-              <img src={photoPreview} alt={t("notes.selectedAlt")} style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 6, display: "block" }} />
-              <button
-                type="button"
-                onClick={clearPhoto}
-                style={{
-                  position: "absolute", top: 4, right: 4,
-                  background: "rgba(11,27,43,0.55)", border: "none", borderRadius: "50%",
-                  width: 22, height: 22, color: "#fff", fontSize: 14, lineHeight: 1,
-                  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                ×
-              </button>
+          {/* Photo previews grid */}
+          {photoPreviews.length > 0 && (
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 4,
+              marginTop: 6,
+            }}>
+              {photoPreviews.map((src, i) => (
+                <div key={i} style={{ position: "relative" }}>
+                  <img
+                    src={src}
+                    alt={t("notes.selectedAlt")}
+                    style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 6, display: "block" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    style={{
+                      position: "absolute", top: 3, right: 3,
+                      background: "rgba(11,27,43,0.55)", border: "none", borderRadius: "50%",
+                      width: 20, height: 20, color: "#fff", fontSize: 13, lineHeight: 1,
+                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
           <div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center" }}>
-            {/* Hidden file input */}
+            {/* Hidden multi-file input */}
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
+              multiple
               onChange={handlePhotoSelect}
               style={{ display: "none" }}
             />
@@ -231,9 +267,20 @@ export function TaskNotes({
                 border: "1px solid rgba(200,146,42,0.4)", borderRadius: 6,
                 color: "rgba(200,146,42,0.85)", fontSize: 16, lineHeight: 1,
                 cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                position: "relative",
               }}
             >
               <span style={{ fontSize: 15 }}>📷</span>
+              {photoFiles.length > 0 && (
+                <span style={{
+                  position: "absolute", top: -5, right: -5,
+                  background: "#2E6B5E", color: "#fff", borderRadius: "50%",
+                  width: 16, height: 16, fontSize: 10, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {photoFiles.length}
+                </span>
+              )}
             </button>
             <button
               type="submit"
