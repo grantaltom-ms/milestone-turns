@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerSupabase } from "@/lib/supabase/server";
+import { getServiceSupabase } from "@/lib/supabase/service";
 import { getCurrentInitials } from "@/lib/current-user";
 import { logEvent } from "@/lib/events";
 
@@ -298,6 +299,56 @@ export async function addTaskNoteAction(input: {
 
   const me = await actor();
   await logEvent(input.turn_id, "note_added", me, { task_name: input.task_name });
+
+  revalidatePath(`/turns/${input.turn_id}`);
+}
+
+/** Remove one photo from a task note. Deletes the note itself if removing it
+ *  leaves the note with neither content nor any remaining photos. */
+export async function deleteTaskNotePhotoAction(input: {
+  note_id: string;
+  turn_id: string;
+  photo_url: string;
+}): Promise<void> {
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Fetch current note state
+  const { data: note, error: fetchErr } = await supabase
+    .from("task_notes")
+    .select("photo_urls, content")
+    .eq("id", input.note_id)
+    .single();
+  if (fetchErr || !note) throw fetchErr ?? new Error("Note not found");
+
+  const remaining = (note.photo_urls as string[]).filter((u) => u !== input.photo_url);
+
+  if (remaining.length === 0 && !note.content) {
+    // Note would be empty — delete it entirely
+    const { error } = await supabase.from("task_notes").delete().eq("id", input.note_id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("task_notes")
+      .update({ photo_urls: remaining })
+      .eq("id", input.note_id);
+    if (error) throw error;
+  }
+
+  // Best-effort storage cleanup using service client (bypasses author-only RLS)
+  try {
+    const service = getServiceSupabase();
+    // Extract storage path: everything after "/object/public/task-photos/"
+    const marker = "/object/public/task-photos/";
+    const idx = input.photo_url.indexOf(marker);
+    if (idx !== -1) {
+      const path = decodeURIComponent(input.photo_url.slice(idx + marker.length));
+      await service.storage.from("task-photos").remove([path]);
+    }
+  } catch {
+    // Storage cleanup failure is non-fatal
+  }
 
   revalidatePath(`/turns/${input.turn_id}`);
 }

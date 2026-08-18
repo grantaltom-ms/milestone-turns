@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { addTaskNoteAction } from "@/app/actions";
+import { addTaskNoteAction, deleteTaskNotePhotoAction } from "@/app/actions";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { useT } from "@/lib/i18n-context";
 import type { TaskNote } from "@/lib/supabase/types";
@@ -39,6 +39,7 @@ export function TaskNotes({
   const [notes, setNotes] = useState<TaskNote[]>(initialNotes);
   const [expanded, setExpanded] = useState(false);
   const [composing, setComposing] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState<string | null>(null); // photo URL being deleted
   const [draft, setDraft] = useState("");
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
@@ -136,6 +137,27 @@ export function TaskNotes({
     }
   }
 
+  async function handleDeletePhoto(note: TaskNote, photoUrl: string) {
+    if (deletingPhoto) return;
+    setDeletingPhoto(photoUrl);
+    // Optimistic update
+    setNotes((prev) => prev.map((n) => {
+      if (n.id !== note.id) return n;
+      const remaining = n.photo_urls.filter((u) => u !== photoUrl);
+      // Remove note entirely from local state if it would be empty
+      if (remaining.length === 0 && !n.content) return null as unknown as TaskNote;
+      return { ...n, photo_urls: remaining };
+    }).filter(Boolean));
+    try {
+      await deleteTaskNotePhotoAction({ note_id: note.id, turn_id: turnId, photo_url: photoUrl });
+    } catch {
+      // Revert on failure
+      setNotes(initialNotes);
+    } finally {
+      setDeletingPhoto(null);
+    }
+  }
+
   const canSubmit = (draft.trim().length > 0 || photoFiles.length > 0) && !uploading;
 
   return (
@@ -179,13 +201,31 @@ export function TaskNotes({
                       marginTop: note.content ? 4 : 0,
                     }}>
                       {note.photo_urls.map((url, i) => (
-                        <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ display: "block" }}>
-                          <img
-                            src={url}
-                            alt={t("notes.photoAlt")}
-                            style={{ width: "100%", borderRadius: 5, display: "block", objectFit: "cover", aspectRatio: note.photo_urls.length === 1 ? "auto" : "1" }}
-                          />
-                        </a>
+                        <div key={i} style={{ position: "relative" }}>
+                          <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: "block" }}>
+                            <img
+                              src={url}
+                              alt={t("notes.photoAlt")}
+                              style={{ width: "100%", borderRadius: 5, display: "block", objectFit: "cover", aspectRatio: note.photo_urls.length === 1 ? "auto" : "1", opacity: deletingPhoto === url ? 0.4 : 1, transition: "opacity 0.15s" }}
+                            />
+                          </a>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.preventDefault(); handleDeletePhoto(note, url); }}
+                            disabled={!!deletingPhoto}
+                            title="Delete photo"
+                            style={{
+                              position: "absolute", top: 4, right: 4,
+                              background: "rgba(11,27,43,0.55)", border: "none", borderRadius: "50%",
+                              width: 22, height: 22, color: "#fff", fontSize: 14, lineHeight: 1,
+                              cursor: deletingPhoto ? "not-allowed" : "pointer",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              opacity: deletingPhoto === url ? 0.4 : 1,
+                            }}
+                          >
+                            ×
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
