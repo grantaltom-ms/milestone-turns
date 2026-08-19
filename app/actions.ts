@@ -353,6 +353,45 @@ export async function deleteTaskNotePhotoAction(input: {
   revalidatePath(`/turns/${input.turn_id}`);
 }
 
+export async function deleteTaskNoteAction(input: {
+  note_id: string;
+  turn_id: string;
+}): Promise<void> {
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Fetch photo URLs so we can clean up storage
+  const { data: note, error: fetchErr } = await supabase
+    .from("task_notes")
+    .select("photo_urls")
+    .eq("id", input.note_id)
+    .single();
+  if (fetchErr || !note) throw fetchErr ?? new Error("Note not found");
+
+  const { error } = await supabase.from("task_notes").delete().eq("id", input.note_id);
+  if (error) throw error;
+
+  // Best-effort storage cleanup for all photos
+  if ((note.photo_urls as string[]).length > 0) {
+    try {
+      const service = getServiceSupabase();
+      const marker = "/object/public/task-photos/";
+      const paths = (note.photo_urls as string[])
+        .map((url) => {
+          const idx = url.indexOf(marker);
+          return idx !== -1 ? decodeURIComponent(url.slice(idx + marker.length)) : null;
+        })
+        .filter(Boolean) as string[];
+      if (paths.length > 0) await service.storage.from("task-photos").remove(paths);
+    } catch {
+      // non-fatal
+    }
+  }
+
+  revalidatePath(`/turns/${input.turn_id}`);
+}
+
 /** Upsert a user's own profile (called from onboarding). */
 export async function upsertProfileAction(input: {
   name: string;
