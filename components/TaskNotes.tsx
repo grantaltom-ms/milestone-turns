@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { addTaskNoteAction, deleteTaskNotePhotoAction } from "@/app/actions";
+import { addTaskNoteAction, deleteTaskNotePhotoAction, deleteTaskNoteAction } from "@/app/actions";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { useT } from "@/lib/i18n-context";
 import type { TaskNote } from "@/lib/supabase/types";
@@ -40,6 +40,7 @@ export function TaskNotes({
   const [expanded, setExpanded] = useState(false);
   const [composing, setComposing] = useState(false);
   const [deletingPhoto, setDeletingPhoto] = useState<string | null>(null); // photo URL being deleted
+  const [deletingNote, setDeletingNote] = useState<string | null>(null); // note id being deleted
   const [draft, setDraft] = useState("");
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
@@ -158,6 +159,19 @@ export function TaskNotes({
     }
   }
 
+  async function handleDeleteNote(note: TaskNote) {
+    if (deletingNote) return;
+    setDeletingNote(note.id);
+    setNotes((prev) => prev.filter((n) => n.id !== note.id));
+    try {
+      await deleteTaskNoteAction({ note_id: note.id, turn_id: turnId });
+    } catch {
+      setNotes(initialNotes);
+    } finally {
+      setDeletingNote(null);
+    }
+  }
+
   const canSubmit = (draft.trim().length > 0 || photoFiles.length > 0) && !uploading;
 
   return (
@@ -187,6 +201,21 @@ export function TaskNotes({
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                     <span style={{ fontWeight: 600, fontSize: 11.5, color: "#0B1B2B" }}>{note.author_name}</span>
                     <span style={{ fontSize: 11, color: "rgba(11,27,43,0.38)" }}>{formatNoteTime(note.created_at, t)}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNote(note)}
+                      disabled={!!deletingNote || !!deletingPhoto}
+                      title="Delete note"
+                      style={{
+                        marginLeft: "auto", background: "transparent", border: "none",
+                        padding: "2px 4px", cursor: deletingNote ? "not-allowed" : "pointer",
+                        color: "rgba(11,27,43,0.3)", fontSize: 14, lineHeight: 1,
+                        opacity: deletingNote === note.id ? 0.4 : 1,
+                        display: "flex", alignItems: "center",
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
                   {note.content && (
                     <p style={{ margin: 0, fontSize: 13, color: "#0B1B2B", lineHeight: 1.45, whiteSpace: "pre-wrap", marginBottom: note.photo_urls.length > 0 ? 6 : 0 }}>
