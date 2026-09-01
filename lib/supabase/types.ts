@@ -51,7 +51,7 @@ export type Profile = {
   id: string;
   name: string;
   email: string;
-  role: "office_lead" | "office" | "maintenance_lead" | "maintenance" | "admin";
+  role: "office_lead" | "office" | "maintenance_lead" | "maintenance" | "admin" | "vendor";
   initials: string;
   avatar_color: string;
   language: Locale;
