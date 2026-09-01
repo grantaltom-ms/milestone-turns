@@ -89,9 +89,40 @@ A standalone, read-only page for the head of maintenance at
 turns board. Two tabs:
 
 - **Vacant Now** — every empty unit, grouped by building, with a badge showing
-  how many days it has been sitting. Buildings are ordered worst-first, and the
-  badge turns amber at 15 days and brick at 30.
-- **Coming Up** — units whose tenant has given notice, soonest move-out first.
+  how many days it has been sitting. The badge turns amber at 15 days and
+  brick at 30.
+- **Coming Up** — units whose tenant has given notice, with days until move-out.
+
+Both tabs group buildings into four service areas, collapsed by default, so
+the first screen is four lines rather than sixty:
+
+| Area | Cities |
+| --- | --- |
+| Seattle | Seattle, Renton |
+| SeaTac | SeaTac, Des Moines |
+| Eastside | Issaquah, Bellevue, Redmond |
+| Burien | Burien |
+
+All four always appear, in that fixed order, so their positions never move; an
+area with nothing in it reads "None" and does not open. A collapsed area shows
+its unit count and, on Vacant Now, how many of those are over 30 days.
+
+**A building whose city is not listed above is left off the board entirely.**
+The portfolio holds two out-of-area properties (1255 Kearny St in San
+Francisco, 1803 F Street in Vancouver) that this crew does not cover. Adding a
+building in a genuinely new city means adding that city to
+`CITIES_BY_REGION` in `lib/regions.ts`, or it will not show up.
+
+The area's city comes from `properties.city`, not the snapshot's own `city`
+column — the CSV upload path fills the latter but the nightly API sync may
+not, and relying on it would empty the board the day uploads stop.
+
+Inside an area, buildings are listed A-Z. The board is a lookup — "what's
+going on at Ascona?" — so a fixed order lets someone find a building by
+position, which an urgency-ranked order (where a building moves as its units
+age) does not. Urgency still reads off the day badges, and within each
+building the units are ordered by it: longest-empty first on Vacant Now,
+soonest move-out first on Coming Up.
 
 It reads the newest row set in `unit_vacancy_snapshots`, so it covers the
 whole portfolio rather than only the buildings enabled for turn sync. The
