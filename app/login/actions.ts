@@ -1,8 +1,9 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import type { Profile } from "@/lib/supabase/types";
 
-export type PublicProfile = { id: string; name: string; initials: string };
+export type PublicProfile = { id: string; name: string; initials: string; role: Profile["role"] };
 
 /** Load the team roster for the login dropdown. No auth required. */
 export async function loadPublicProfilesAction(): Promise<PublicProfile[]> {
@@ -13,7 +14,7 @@ export async function loadPublicProfilesAction(): Promise<PublicProfile[]> {
   );
   const { data } = await admin
     .from("profiles")
-    .select("id, name, initials")
+    .select("id, name, initials, role")
     .order("name");
   return (data ?? []) as PublicProfile[];
 }

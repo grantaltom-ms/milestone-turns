@@ -41,11 +41,88 @@ function Shell({ children }: { children?: React.ReactNode }) {
           Milestone Turns
         </div>
         <p style={{ fontWeight: 300, fontSize: 14, color: "rgba(245,241,232,0.55)", margin: 0 }}>
-          Select your name to sign in.
+          Find your name below to sign in.
         </p>
       </div>
       {children}
     </div>
+  );
+}
+
+// Which role groups appear under each dropdown, and its header label.
+const GROUPS: { key: string; label: string; roles: PublicProfile["role"][] }[] = [
+  { key: "maintenance", label: "Maintenance", roles: ["maintenance_lead", "maintenance"] },
+  { key: "managers", label: "Managers", roles: ["office_lead", "office", "admin"] },
+  { key: "vendors", label: "Vendors", roles: ["vendor"] },
+];
+
+function RoleSelect({
+  label,
+  profiles,
+  value,
+  onChange,
+}: {
+  label: string;
+  profiles: PublicProfile[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const selectStyle: React.CSSProperties = {
+    width: "100%",
+    border: "1.5px solid rgba(245,241,232,0.18)",
+    borderRadius: 8,
+    padding: "13px 14px",
+    fontSize: 15,
+    color: value ? "#F5F1E8" : "rgba(245,241,232,0.4)",
+    background: "rgba(255,255,255,0.06)",
+    outline: "none",
+    boxSizing: "border-box",
+    appearance: "none",
+    cursor: profiles.length > 0 ? "pointer" : "not-allowed",
+  };
+
+  return (
+    <label>
+      <span
+        style={{
+          display: "block",
+          fontWeight: 500,
+          fontSize: 11,
+          textTransform: "uppercase",
+          letterSpacing: "0.12em",
+          color: "rgba(245,241,232,0.65)",
+          marginBottom: 7,
+        }}
+      >
+        {label}
+      </span>
+      <div style={{ position: "relative" }}>
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={profiles.length === 0}
+          style={selectStyle}
+        >
+          <option value="" disabled style={{ background: "#1A2E44", color: "rgba(245,241,232,0.4)" }}>
+            {profiles.length > 0 ? "Select your name…" : "None yet"}
+          </option>
+          {profiles.map((p) => (
+            <option key={p.id} value={p.id} style={{ background: "#1A2E44", color: "#F5F1E8" }}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        {/* chevron */}
+        <svg
+          width="14" height="14"
+          viewBox="0 0 16 16"
+          fill="rgba(245,241,232,0.5)"
+          style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
+        >
+          <path d="M4 6l4 4 4-4" stroke="rgba(245,241,232,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+      </div>
+    </label>
   );
 }
 
@@ -54,13 +131,21 @@ function LoginForm() {
   const next = search.get("next") ?? "/";
 
   const [profiles, setProfiles] = useState<PublicProfile[]>([]);
-  const [selected, setSelected] = useState("");
+  // One selection id per group — picking in one clears the other two, so
+  // exactly one profile is ever selected at a time across all three menus.
+  const [selections, setSelections] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     loadPublicProfilesAction().then(setProfiles);
   }, []);
+
+  const selected = GROUPS.map((g) => selections[g.key]).find(Boolean) ?? "";
+
+  function selectIn(groupKey: string, id: string) {
+    setSelections({ [groupKey]: id });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -83,63 +168,18 @@ function LoginForm() {
     });
   }
 
-  const selectStyle: React.CSSProperties = {
-    width: "100%",
-    border: "1.5px solid rgba(245,241,232,0.18)",
-    borderRadius: 8,
-    padding: "13px 14px",
-    fontSize: 15,
-    color: selected ? "#F5F1E8" : "rgba(245,241,232,0.4)",
-    background: "rgba(255,255,255,0.06)",
-    outline: "none",
-    boxSizing: "border-box",
-    appearance: "none",
-    cursor: "pointer",
-  };
-
   return (
     <Shell>
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <label>
-          <span
-            style={{
-              display: "block",
-              fontWeight: 500,
-              fontSize: 11,
-              textTransform: "uppercase",
-              letterSpacing: "0.12em",
-              color: "rgba(245,241,232,0.65)",
-              marginBottom: 7,
-            }}
-          >
-            Who are you?
-          </span>
-          <div style={{ position: "relative" }}>
-            <select
-              value={selected}
-              onChange={(e) => setSelected(e.target.value)}
-              style={selectStyle}
-            >
-              <option value="" disabled style={{ background: "#1A2E44", color: "rgba(245,241,232,0.4)" }}>
-                Select your name…
-              </option>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id} style={{ background: "#1A2E44", color: "#F5F1E8" }}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-            {/* chevron */}
-            <svg
-              width="14" height="14"
-              viewBox="0 0 16 16"
-              fill="rgba(245,241,232,0.5)"
-              style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}
-            >
-              <path d="M4 6l4 4 4-4" stroke="rgba(245,241,232,0.5)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-            </svg>
-          </div>
-        </label>
+        {GROUPS.map((g) => (
+          <RoleSelect
+            key={g.key}
+            label={g.label}
+            profiles={profiles.filter((p) => g.roles.includes(p.role))}
+            value={selections[g.key] ?? ""}
+            onChange={(id) => selectIn(g.key, id)}
+          />
+        ))}
 
         {error && (
           <div
