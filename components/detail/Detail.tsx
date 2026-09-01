@@ -72,7 +72,12 @@ export function Detail({
   const holdColor = isBlocked ? "#8B4A2F" : "#C8922A";
   const holdLabel = isBlocked ? t("status.blocked") : t("status.onHold");
 
+  // Both states are optimistically mutated locally, then reset when a
+  // router.refresh() delivers fresh server props. Pre-existing pattern; a
+  // proper `key`-based reset is tracked separately.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setTasks(turn.tasks); }, [turn.tasks]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setSkipped(new Set(turn.skipped_phases ?? [])); }, [turn.skipped_phases]);
 
   useEffect(() => {

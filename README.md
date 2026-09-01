@@ -82,6 +82,64 @@ Email + password sign-in via Supabase Auth. To turn on the gate, set
 With the gate off (default for local dev) the app loads as `TZ` (or whatever
 `NEXT_PUBLIC_DEFAULT_USER_INITIALS` is set to) so you can develop without auth.
 
+## Maintenance vacancy board
+
+A standalone, read-only page for the head of maintenance at
+`/vacancies/<code>` — no sign-in, no navigation, nothing clickable into the
+turns board. Two tabs:
+
+- **Vacant Now** — every empty unit, grouped by building, with a badge showing
+  how many days it has been sitting. Buildings are ordered worst-first, and the
+  badge turns amber at 15 days and brick at 30.
+- **Coming Up** — units whose tenant has given notice, soonest move-out first.
+
+It reads the newest row set in `unit_vacancy_snapshots` (the daily AppFolio
+unit-vacancy export), so it covers the whole portfolio rather than only the
+buildings enabled for turn sync. The header shows the snapshot's date, so a
+stale feed is visible rather than silently wrong.
+
+### Setup
+
+1. Generate a code and set it as `VACANCY_LINK_CODE` in the Vercel project
+   (and `.env.local` for dev):
+   ```bash
+   openssl rand -hex 24
+   ```
+   The code is the only thing protecting the page. Anything under 16
+   characters is rejected and the board returns 404 for everyone — it fails
+   closed rather than going public.
+2. Send him `https://<your-app>/vacancies/<code>` and have him add it to his
+   phone's home screen.
+
+To rotate the link, change the env var and redeploy; the old URL 404s
+immediately.
+
+## Testing
+
+```bash
+npm run lint        # eslint
+npm run typecheck   # tsc --noEmit
+npm run test:unit   # node --test, pure logic
+npm run test:e2e    # Playwright, drives the real page in a browser
+npm test            # unit + e2e
+```
+
+The end-to-end suite runs against a **production build** (`next build && next
+start`), not `next dev` — dev mode blocks cross-origin dev resources, so
+nothing hydrates under test. It serves fixture data from a mock PostgREST
+server (`tests/support/mock-supabase.ts`), so it never touches Supabase or
+AppFolio and the expected day counts stay stable whenever it runs.
+
+In a sandbox with Chromium already installed, point Playwright at it instead
+of downloading one:
+
+```bash
+PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium npm run test:e2e
+```
+
+GitHub Actions runs lint, typecheck, unit tests, build and the browser suite on
+every push and pull request (`.github/workflows/ci.yml`).
+
 ## Deploy
 
 Push to Vercel. Set the four env vars in the Vercel project settings. Done.
