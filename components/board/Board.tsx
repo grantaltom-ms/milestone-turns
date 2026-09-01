@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { STAGE_FILTER_CATEGORY, type ProfileMember } from "@/lib/stages";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
+import { createOpenBuildingsStore } from "@/lib/open-buildings";
 import type { DashboardStats, Profile, Turn } from "@/lib/supabase/types";
 import type { TurnMeta } from "@/lib/turn-meta";
 import { useT } from "@/lib/i18n-context";
@@ -39,6 +40,9 @@ function sortByUnit(turns: Turn[]): Turn[] {
     return pa.prefix !== null ? -1 : 1;
   });
 }
+/** One instance for the app; the board is a singleton screen. */
+const openBuildingsStore = createOpenBuildingsStore();
+
 const FILTERS: Filter[] = ["All", "Mine", "Move-in Soon", "Office", "Maintenance", "Ready", "On Hold", "Stale - Not Ready"];
 
 export function Board({
@@ -55,21 +59,13 @@ export function Board({
   const { t, tp } = useT();
   const [filter, setFilter] = useState<Filter>("All");
   // Which building cards are expanded. Empty by default → landing is compressed.
-  const [openBuildings, setOpenBuildings] = useState<Set<string>>(new Set());
+  const openBuildings = useSyncExternalStore(
+    openBuildingsStore.subscribe,
+    openBuildingsStore.getSnapshot,
+    openBuildingsStore.getServerSnapshot,
+  );
   const router = useRouter();
   const mineSet = useMemo(() => new Set(mineIds), [mineIds]);
-
-  // Persist expanded buildings for this session so opening a unit and pressing
-  // Back returns to the same expanded view instead of collapsing everything.
-  // Hydrate after mount (SSR renders the compressed default → no mismatch).
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("board:openBuildings");
-      // Mount-only hydration from an external store, not a render loop.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setOpenBuildings(new Set(JSON.parse(raw) as string[]));
-    } catch {}
-  }, []);
 
   useEffect(() => {
     const supabase = getBrowserSupabase();
@@ -136,13 +132,7 @@ export function Board({
   }, [visible]);
 
   function toggleBuilding(name: string) {
-    setOpenBuildings((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      try { sessionStorage.setItem("board:openBuildings", JSON.stringify([...next])); } catch {}
-      return next;
-    });
+    openBuildingsStore.toggle(name);
   }
 
   // A building is open when the user expanded it, when there's only one
