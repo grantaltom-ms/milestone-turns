@@ -6,7 +6,10 @@ on:
   pull_request:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # A push to a PR branch fires both the push and pull_request events. Keying
+  # on the branch name (rather than github.ref, which differs between the two)
+  # puts them in one group so the commit is verified once, not twice.
+  group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:

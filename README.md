@@ -108,8 +108,14 @@ stale feed is visible rather than silently wrong.
    The code is the only thing protecting the page. Anything under 16
    characters is rejected and the board returns 404 for everyone — it fails
    closed rather than going public.
-2. Send him `https://<your-app>/vacancies/<code>` and have him add it to his
-   phone's home screen.
+2. Send him `https://milestonepm.app/vacancies/<code>` and have him add it to
+   his phone's home screen.
+
+   Use the **custom domain**, not a `*.vercel.app` URL. The project's Vercel
+   deployment protection is set to `all_except_custom_domains`, so every
+   `*.vercel.app` host (previews and the default production URL alike) demands
+   a Vercel login first — which is exactly the friction this page exists to
+   avoid. `milestonepm.app` is exempt.
 
 To rotate the link, change the env var and redeploy; the old URL 404s
 immediately.
