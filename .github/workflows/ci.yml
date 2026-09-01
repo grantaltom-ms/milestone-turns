@@ -1,14 +1,18 @@
 name: CI
 
 on:
+  # Branch work is verified through its pull request; main is verified on push
+  # so merges are covered. Listing both `push: ["**"]` and `pull_request` would
+  # fire two events for one commit — either double the work, or (with the
+  # concurrency group below) one run cancelling the other and leaving a
+  # cancelled check on the PR that reads like a failure.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
 
 concurrency:
-  # A push to a PR branch fires both the push and pull_request events. Keying
-  # on the branch name (rather than github.ref, which differs between the two)
-  # puts them in one group so the commit is verified once, not twice.
+  # Successive pushes to the same branch supersede each other; only one event
+  # type fires per commit, so nothing here cancels a run that had to happen.
   group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
