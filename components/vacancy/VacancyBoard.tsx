@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatDay, type BuildingGroup, type UpcomingUnit, type VacancyBoard as Board, type VacantUnit } from "@/lib/vacancy-board";
+import { formatDay, type BuildingGroup, type RegionGroup, type UpcomingUnit, type VacancyBoard as Board, type VacantUnit } from "@/lib/vacancy-board";
 
 type Tab = "vacant" | "upcoming";
 
@@ -110,11 +110,8 @@ function UnitRow({
 function BuildingSection({ building, children }: { building: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2
+      <h3
         style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 1,
           margin: 0,
           padding: "7px 16px",
           background: "#E8E4DC",
@@ -129,8 +126,105 @@ function BuildingSection({ building, children }: { building: string; children: R
         }}
       >
         {building}
-      </h2>
+      </h3>
       <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>{children}</ul>
+    </section>
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      style={{ transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s", flexShrink: 0 }}
+    >
+      <path d="M6 3.5L10.5 8L6 12.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** One service area: a tap target that opens to reveal its buildings. */
+function RegionSection({
+  region,
+  unitCount,
+  agedCount,
+  open,
+  onToggle,
+  children,
+}: {
+  region: string;
+  unitCount: number;
+  agedCount: number;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  const empty = unitCount === 0;
+  const panelId = `region-${region.replace(/\s+/g, "-").toLowerCase()}`;
+  return (
+    <section>
+      <h2 style={{ margin: 0 }}>
+        <button
+          type="button"
+          onClick={empty ? undefined : onToggle}
+          aria-expanded={open}
+          aria-controls={panelId}
+          disabled={empty}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "14px 16px",
+            border: "none",
+            borderBottom: "1px solid rgba(11,27,43,0.1)",
+            background: NAVY,
+            color: empty ? "rgba(245,241,232,0.45)" : CREAM,
+            cursor: empty ? "default" : "pointer",
+            textAlign: "left",
+            font: "inherit",
+          }}
+        >
+          <Chevron open={open} />
+          <span
+            style={{
+              flex: 1,
+              fontFamily: "var(--font-sans)",
+              fontSize: 15,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
+            {region}
+          </span>
+          {agedCount > 0 && (
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                borderRadius: 999,
+                padding: "2px 8px",
+                background: BRICK,
+                color: "#fff",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {agedCount} over 30d
+            </span>
+          )}
+          <span style={{ fontSize: 13, fontWeight: 500, color: "rgba(245,241,232,0.7)", whiteSpace: "nowrap" }}>
+            {empty ? "None" : `${unitCount} ${unitCount === 1 ? "unit" : "units"}`}
+          </span>
+        </button>
+      </h2>
+      <div id={panelId} hidden={!open}>
+        {children}
+      </div>
     </section>
   );
 }
@@ -143,61 +237,86 @@ function EmptyState({ message }: { message: string }) {
   );
 }
 
-function VacantList({ groups }: { groups: BuildingGroup<VacantUnit>[] }) {
-  if (groups.length === 0) return <EmptyState message="Nothing is vacant right now." />;
+function vacantBuilding(group: BuildingGroup<VacantUnit>) {
   return (
-    <>
-      {groups.map((group) => (
-        <BuildingSection key={group.building} building={group.building}>
-          {group.units.map((u) => (
-            <UnitRow
-              key={u.key}
-              unit={u.unit}
-              size={u.size}
-              detail={u.vacatedOn ? `Empty since ${formatDay(u.vacatedOn)}` : "Move-out date unknown"}
-              note={u.moveIn ? `Rented — move-in ${formatDay(u.moveIn)}` : null}
-              badge={
-                <DayBadge
-                  value={u.daysVacant === null ? "—" : String(u.daysVacant)}
-                  caption={u.daysVacant === 1 ? "day" : "days"}
-                  color={daysColor(u.daysVacant)}
-                />
-              }
+    <BuildingSection key={group.building} building={group.building}>
+      {group.units.map((u) => (
+        <UnitRow
+          key={u.key}
+          unit={u.unit}
+          size={u.size}
+          detail={u.vacatedOn ? `Empty since ${formatDay(u.vacatedOn)}` : "Move-out date unknown"}
+          note={u.moveIn ? `Rented — move-in ${formatDay(u.moveIn)}` : null}
+          badge={
+            <DayBadge
+              value={u.daysVacant === null ? "—" : String(u.daysVacant)}
+              caption={u.daysVacant === 1 ? "day" : "days"}
+              color={daysColor(u.daysVacant)}
             />
-          ))}
-        </BuildingSection>
+          }
+        />
       ))}
-    </>
+    </BuildingSection>
   );
 }
 
-function UpcomingList({ groups }: { groups: BuildingGroup<UpcomingUnit>[] }) {
-  if (groups.length === 0) return <EmptyState message="No upcoming move-outs." />;
+function upcomingBuilding(group: BuildingGroup<UpcomingUnit>) {
+  return (
+    <BuildingSection key={group.building} building={group.building}>
+      {group.units.map((u) => {
+        const days = u.daysUntilOut;
+        const badgeValue = days === null ? "—" : days <= 0 ? "0" : String(days);
+        return (
+          <UnitRow
+            key={u.key}
+            unit={u.unit}
+            size={u.size}
+            detail={u.movesOut ? `Moves out ${formatDay(u.movesOut)}` : "Move-out date not set"}
+            note={u.availableOn ? `Ready to rent ${formatDay(u.availableOn)}` : null}
+            badge={
+              <DayBadge
+                value={badgeValue}
+                caption={days !== null && days <= 0 ? "now" : badgeValue === "1" ? "day" : "days"}
+                color={STEEL}
+              />
+            }
+          />
+        );
+      })}
+    </BuildingSection>
+  );
+}
+
+function RegionList<T>({
+  areas,
+  emptyMessage,
+  openRegions,
+  onToggle,
+  renderBuilding,
+  showAged,
+}: {
+  areas: RegionGroup<T>[];
+  emptyMessage: string;
+  openRegions: Set<string>;
+  onToggle: (region: string) => void;
+  renderBuilding: (group: BuildingGroup<T>) => React.ReactNode;
+  showAged: boolean;
+}) {
+  const total = areas.reduce((n, a) => n + a.unitCount, 0);
+  if (total === 0) return <EmptyState message={emptyMessage} />;
   return (
     <>
-      {groups.map((group) => (
-        <BuildingSection key={group.building} building={group.building}>
-          {group.units.map((u) => {
-            const days = u.daysUntilOut;
-            const badgeValue = days === null ? "—" : days <= 0 ? "0" : String(days);
-            return (
-              <UnitRow
-                key={u.key}
-                unit={u.unit}
-                size={u.size}
-                detail={u.movesOut ? `Moves out ${formatDay(u.movesOut)}` : "Move-out date not set"}
-                note={u.availableOn ? `Ready to rent ${formatDay(u.availableOn)}` : null}
-                badge={
-                  <DayBadge
-                    value={badgeValue}
-                    caption={days !== null && days <= 0 ? "now" : badgeValue === "1" ? "day" : "days"}
-                    color={STEEL}
-                  />
-                }
-              />
-            );
-          })}
-        </BuildingSection>
+      {areas.map((area) => (
+        <RegionSection
+          key={area.region}
+          region={area.region}
+          unitCount={area.unitCount}
+          agedCount={showAged ? area.longVacantCount : 0}
+          open={openRegions.has(area.region)}
+          onToggle={() => onToggle(area.region)}
+        >
+          {area.buildings.map(renderBuilding)}
+        </RegionSection>
       ))}
     </>
   );
@@ -205,16 +324,36 @@ function UpcomingList({ groups }: { groups: BuildingGroup<UpcomingUnit>[] }) {
 
 export function VacancyBoard({ board, asOf }: { board: Board; asOf: string | null }) {
   const [tab, setTab] = useState<Tab>("vacant");
+  // Areas start closed so the first screen is four lines, not sixty. Tracked
+  // per tab: opening Seattle on Vacant Now should not also open it on Coming
+  // Up, which is a different list of work.
+  const [openVacant, setOpenVacant] = useState<Set<string>>(new Set());
+  const [openUpcoming, setOpenUpcoming] = useState<Set<string>>(new Set());
+
+  const openRegions = tab === "vacant" ? openVacant : openUpcoming;
+  const setOpenRegions = tab === "vacant" ? setOpenVacant : setOpenUpcoming;
+
+  function toggleRegion(region: string) {
+    setOpenRegions((prev) => {
+      const next = new Set(prev);
+      if (next.has(region)) next.delete(region);
+      else next.add(region);
+      return next;
+    });
+  }
 
   const tabs: { key: Tab; label: string; count: number }[] = [
     { key: "vacant", label: "Vacant Now", count: board.vacantCount },
     { key: "upcoming", label: "Coming Up", count: board.upcomingCount },
   ];
 
+  const areaCount = (tab === "vacant" ? board.vacant : board.upcoming).filter(
+    (a) => a.unitCount > 0,
+  ).length;
   const summary =
     tab === "vacant"
-      ? `${board.vacantCount} ${board.vacantCount === 1 ? "unit" : "units"} in ${board.vacant.length} ${board.vacant.length === 1 ? "building" : "buildings"}${board.longVacantCount > 0 ? ` · ${board.longVacantCount} over 30 days` : ""}`
-      : `${board.upcomingCount} ${board.upcomingCount === 1 ? "unit" : "units"} on notice in ${board.upcoming.length} ${board.upcoming.length === 1 ? "building" : "buildings"}`;
+      ? `${board.vacantCount} ${board.vacantCount === 1 ? "unit" : "units"} in ${areaCount} ${areaCount === 1 ? "area" : "areas"}${board.longVacantCount > 0 ? ` · ${board.longVacantCount} over 30 days` : ""}`
+      : `${board.upcomingCount} ${board.upcomingCount === 1 ? "unit" : "units"} on notice in ${areaCount} ${areaCount === 1 ? "area" : "areas"}`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: CREAM }}>
@@ -301,7 +440,25 @@ export function VacancyBoard({ board, asOf }: { board: Board; asOf: string | nul
         role="tabpanel"
         style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 28 }}
       >
-        {tab === "vacant" ? <VacantList groups={board.vacant} /> : <UpcomingList groups={board.upcoming} />}
+        {tab === "vacant" ? (
+          <RegionList
+            areas={board.vacant}
+            emptyMessage="Nothing is vacant right now."
+            openRegions={openRegions}
+            onToggle={toggleRegion}
+            renderBuilding={vacantBuilding}
+            showAged
+          />
+        ) : (
+          <RegionList
+            areas={board.upcoming}
+            emptyMessage="No upcoming move-outs."
+            openRegions={openRegions}
+            onToggle={toggleRegion}
+            renderBuilding={upcomingBuilding}
+            showAged={false}
+          />
+        )}
       </main>
     </div>
   );

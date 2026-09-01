@@ -15,7 +15,20 @@ export type FixtureRow = {
   last_move_out: string | null;
   available_on: string | null;
   next_move_in: string | null;
+  property_id: number | null;
 };
+
+/** `properties` rows the board joins for each building's service-area city. */
+export const BOARD_PROPERTY_ROWS = [
+  { id: 1, name: "Alder Court", city: "Seattle" },
+  { id: 2, name: "Ascona", city: "Seattle" },
+  { id: 3, name: "Bel Vista", city: "Renton" },   // Renton is worked as Seattle
+  { id: 4, name: "Crosby", city: "Burien" },
+  { id: 5, name: "DD Culp", city: "Seattle" },
+  { id: 6, name: "Envoy", city: "Des Moines" },   // Des Moines is worked as SeaTac
+  { id: 7, name: "Kerry Park", city: "Bellevue" }, // Eastside
+  { id: 8, name: "Far Away Place", city: "San Francisco" }, // out of area
+];
 
 /** Today in Seattle as YYYY-MM-DD — matches the board's own clock. */
 export function today(now: Date = new Date()): string {
@@ -57,29 +70,51 @@ export const EXPECTED_DAYS_UNTIL_OUT: Record<string, number> = {
 
 export const FIXTURE_ROWS: FixtureRow[] = [
   // ── Vacant now ────────────────────────────────────────────────────────────
-  { property_name: "Ascona", unit: "105", unit_status: "Vacant-Unrented", bed_bath: "0/1.00", sqft: 327, last_move_out: ago(62), available_on: null, next_move_in: null },
-  { property_name: "Ascona", unit: "202", unit_status: "Vacant-Rented", bed_bath: "1/1.00", sqft: 315, last_move_out: ago(12), available_on: null, next_move_in: ahead(9) },
-  { property_name: "Ascona", unit: "41", unit_status: "Vacant-Unrented", bed_bath: "2/1.50", sqft: 880, last_move_out: ago(3), available_on: null, next_move_in: null },
-  { property_name: "Bel Vista", unit: "2", unit_status: "Vacant-Unrented", bed_bath: "0/1.00", sqft: 435, last_move_out: ago(44), available_on: null, next_move_in: null },
-  { property_name: "Crosby", unit: "7", unit_status: "Vacant-Unrented", bed_bath: "1/1.00", sqft: 600, last_move_out: ago(31), available_on: null, next_move_in: null },
-  { property_name: "Crosby", unit: "10", unit_status: "Vacant-Unrented", bed_bath: "1/1.00", sqft: 610, last_move_out: ago(5), available_on: null, next_move_in: null },
-  { property_name: "Alder Court", unit: "3", unit_status: "Vacant-Unrented", bed_bath: "1/1.00", sqft: 540, last_move_out: ago(1), available_on: null, next_move_in: null },
+  { property_name: "Ascona", unit: "105", unit_status: "Vacant-Unrented", bed_bath: "0/1.00", sqft: 327, last_move_out: ago(62), available_on: null, next_move_in: null , property_id: 2 },
+  { property_name: "Ascona", unit: "202", unit_status: "Vacant-Rented", bed_bath: "1/1.00", sqft: 315, last_move_out: ago(12), available_on: null, next_move_in: ahead(9) , property_id: 2 },
+  { property_name: "Ascona", unit: "41", unit_status: "Vacant-Unrented", bed_bath: "2/1.50", sqft: 880, last_move_out: ago(3), available_on: null, next_move_in: null , property_id: 2 },
+  { property_name: "Bel Vista", unit: "2", unit_status: "Vacant-Unrented", bed_bath: "0/1.00", sqft: 435, last_move_out: ago(44), available_on: null, next_move_in: null , property_id: 3 },
+  { property_name: "Crosby", unit: "7", unit_status: "Vacant-Unrented", bed_bath: "1/1.00", sqft: 600, last_move_out: ago(31), available_on: null, next_move_in: null , property_id: 4 },
+  { property_name: "Crosby", unit: "10", unit_status: "Vacant-Unrented", bed_bath: "1/1.00", sqft: 610, last_move_out: ago(5), available_on: null, next_move_in: null , property_id: 4 },
+  { property_name: "Alder Court", unit: "3", unit_status: "Vacant-Unrented", bed_bath: "1/1.00", sqft: 540, last_move_out: ago(1), available_on: null, next_move_in: null , property_id: 1 },
   // Missing move-out date — the board must still list it rather than drop it.
-  { property_name: "Alder Court", unit: "9", unit_status: "Vacant-Unrented", bed_bath: null, sqft: null, last_move_out: null, available_on: null, next_move_in: null },
+  { property_name: "Alder Court", unit: "9", unit_status: "Vacant-Unrented", bed_bath: null, sqft: null, last_move_out: null, available_on: null, next_move_in: null , property_id: 1 },
 
   // ── On notice ─────────────────────────────────────────────────────────────
-  { property_name: "DD Culp", unit: "220", unit_status: "Notice-Unrented", bed_bath: "1/1.00", sqft: 693, last_move_out: ahead(34), available_on: ahead(44), next_move_in: null },
-  { property_name: "DD Culp", unit: "116", unit_status: "Notice-Unrented", bed_bath: "0/1.00", sqft: 485, last_move_out: ahead(29), available_on: ahead(39), next_move_in: null },
-  { property_name: "Envoy", unit: "106", unit_status: "Notice-Rented", bed_bath: "0/1.00", sqft: 381, last_move_out: ahead(14), available_on: ahead(24), next_move_in: null },
-  { property_name: "Kerry Park", unit: "A", unit_status: "Notice-Unrented", bed_bath: "0/1.00", sqft: 379, last_move_out: ahead(6), available_on: ahead(16), next_move_in: null },
+  { property_name: "DD Culp", unit: "220", unit_status: "Notice-Unrented", bed_bath: "1/1.00", sqft: 693, last_move_out: ahead(34), available_on: ahead(44), next_move_in: null , property_id: 5 },
+  { property_name: "DD Culp", unit: "116", unit_status: "Notice-Unrented", bed_bath: "0/1.00", sqft: 485, last_move_out: ahead(29), available_on: ahead(39), next_move_in: null , property_id: 5 },
+  { property_name: "Envoy", unit: "106", unit_status: "Notice-Rented", bed_bath: "0/1.00", sqft: 381, last_move_out: ahead(14), available_on: ahead(24), next_move_in: null , property_id: 6 },
+  { property_name: "Kerry Park", unit: "A", unit_status: "Notice-Unrented", bed_bath: "0/1.00", sqft: 379, last_move_out: ahead(6), available_on: ahead(16), next_move_in: null , property_id: 7 },
+
+  // ── Out of area — San Francisco, so it must not reach the board at all ───
+  { property_name: "Far Away Place", unit: "700", unit_status: "Vacant-Unrented", bed_bath: "1/1.00", sqft: 700, last_move_out: ago(90), available_on: null, next_move_in: null, property_id: 8 },
+  { property_name: "Far Away Place", unit: "701", unit_status: "Notice-Unrented", bed_bath: "1/1.00", sqft: 700, last_move_out: ahead(3), available_on: ahead(13), next_move_in: null, property_id: 8 },
 
   // ── Occupied — must appear on neither tab ─────────────────────────────────
-  { property_name: "Ascona", unit: "300", unit_status: "Occupied", bed_bath: "1/1.00", sqft: 400, last_move_out: ago(400), available_on: null, next_move_in: null },
-  { property_name: "Crosby", unit: "12", unit_status: "Occupied", bed_bath: "1/1.00", sqft: 600, last_move_out: null, available_on: null, next_move_in: null },
+  { property_name: "Ascona", unit: "300", unit_status: "Occupied", bed_bath: "1/1.00", sqft: 400, last_move_out: ago(400), available_on: null, next_move_in: null , property_id: 2 },
+  { property_name: "Crosby", unit: "12", unit_status: "Occupied", bed_bath: "1/1.00", sqft: 600, last_move_out: null, available_on: null, next_move_in: null , property_id: 4 },
 ];
 
-export const VACANT_COUNT = FIXTURE_ROWS.filter((r) => r.unit_status.startsWith("Vacant")).length;
-export const UPCOMING_COUNT = FIXTURE_ROWS.filter((r) => r.unit_status.startsWith("Notice")).length;
+/** Property ids inside the four service areas — id 8 is deliberately not. */
+const IN_AREA = new Set([1, 2, 3, 4, 5, 6, 7]);
+const shown = FIXTURE_ROWS.filter((r) => r.property_id != null && IN_AREA.has(r.property_id));
+
+export const VACANT_COUNT = shown.filter((r) => r.unit_status.startsWith("Vacant")).length;
+export const UPCOMING_COUNT = shown.filter((r) => r.unit_status.startsWith("Notice")).length;
+
+/** Units per service area on each tab, in the board's fixed area order. */
+export const VACANT_BY_REGION: Record<string, number> = {
+  Seattle: 6, // Alder Court 2 + Ascona 3 + Bel Vista 1 (Renton)
+  SeaTac: 0,
+  Eastside: 0,
+  Burien: 2, // Crosby
+};
+export const UPCOMING_BY_REGION: Record<string, number> = {
+  Seattle: 2, // DD Culp
+  SeaTac: 1, // Envoy (Des Moines)
+  Eastside: 1, // Kerry Park (Bellevue)
+  Burien: 0,
+};
 
 // ── Fixtures for the nightly sync route ─────────────────────────────────────
 
@@ -143,5 +178,5 @@ export const EXPECTED_SNAPSHOT_UNITS = ["105", "202", "3", "A", "1"];
 /** An older snapshot the board must ignore in favour of the newest one. */
 export const STALE_SNAPSHOT_DATE = shiftDays(SNAPSHOT_DATE, -1);
 export const STALE_ROWS: FixtureRow[] = [
-  { property_name: "Should Not Appear", unit: "999", unit_status: "Vacant-Unrented", bed_bath: "1/1.00", sqft: 100, last_move_out: ago(500), available_on: null, next_move_in: null },
+  { property_name: "Should Not Appear", unit: "999", unit_status: "Vacant-Unrented", bed_bath: "1/1.00", sqft: 100, last_move_out: ago(500), available_on: null, next_move_in: null, property_id: 2 },
 ];

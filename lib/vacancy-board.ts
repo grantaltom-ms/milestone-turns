@@ -6,6 +6,7 @@
  * `unit_vacancy_snapshots` rows; output is the two grouped lists the board
  * shows: units empty right now, and units whose tenant has given notice.
  */
+import { REGIONS, regionForCity, type Region } from "./regions.ts";
 
 export type VacancySnapshotRow = {
   property_name: string | null;
@@ -16,6 +17,8 @@ export type VacancySnapshotRow = {
   last_move_out: string | null;
   available_on: string | null;
   next_move_in: string | null;
+  /** Which service area the building sits in; null means out of area. */
+  city: string | null;
 };
 
 export type VacantUnit = {
@@ -43,9 +46,20 @@ export type UpcomingUnit = {
 
 export type BuildingGroup<T> = { building: string; units: T[] };
 
+/** One collapsible area on the board. Always present, even at zero units, so
+ *  the four areas keep fixed positions and an empty one reads as "nothing
+ *  here" rather than looking like a loading failure. */
+export type RegionGroup<T> = {
+  region: Region;
+  buildings: BuildingGroup<T>[];
+  unitCount: number;
+  /** Vacant units sitting 30+ days in this area; always 0 for Coming Up. */
+  longVacantCount: number;
+};
+
 export type VacancyBoard = {
-  vacant: BuildingGroup<VacantUnit>[];
-  upcoming: BuildingGroup<UpcomingUnit>[];
+  vacant: RegionGroup<VacantUnit>[];
+  upcoming: RegionGroup<UpcomingUnit>[];
   vacantCount: number;
   upcomingCount: number;
   /** Vacant units sitting 30+ days — the ones worth chasing. */
@@ -93,6 +107,34 @@ export function formatDay(iso: string | null): string | null {
   return month ? `${month} ${Number(m[3])}` : null;
 }
 
+/**
+ * Group rows into the four fixed areas, each holding alphabetical buildings.
+ *
+ * Every area is emitted even when it has no units, so the four keep stable
+ * positions and an empty one reads as "nothing here" rather than as a
+ * failure to load. `sortUnits` orders the units inside each building.
+ */
+function groupByRegion<T>(
+  rows: Array<{ region: Region; building: string; unit: T }>,
+  sortUnits: (units: T[]) => void,
+): RegionGroup<T>[] {
+  return REGIONS.map((region) => {
+    const buildings = groupByBuilding(rows.filter((r) => r.region === region));
+    for (const group of buildings) sortUnits(group.units);
+    // Buildings A-Z. The list is a lookup — "what's going on at Ascona?" — so
+    // a fixed order lets someone find a building by position, which an
+    // urgency-ranked order (where a building moves as its units age) does
+    // not. Urgency still shows in the day badges and in the unit order.
+    buildings.sort((a, b) => compareBuildings(a.building, b.building));
+    return {
+      region,
+      buildings,
+      unitCount: buildings.reduce((n, b) => n + b.units.length, 0),
+      longVacantCount: 0, // filled in by the caller where it applies
+    };
+  });
+}
+
 function groupByBuilding<T>(rows: Array<{ building: string; unit: T }>): BuildingGroup<T>[] {
   const map = new Map<string, T[]>();
   for (const { building, unit } of rows) {
@@ -115,10 +157,15 @@ function compareBuildings(a: string, b: string): number {
 }
 
 export function buildVacancyBoard(rows: VacancySnapshotRow[], today: string): VacancyBoard {
-  const vacantRows: Array<{ building: string; unit: VacantUnit }> = [];
-  const upcomingRows: Array<{ building: string; unit: UpcomingUnit }> = [];
+  const vacantRows: Array<{ region: Region; building: string; unit: VacantUnit }> = [];
+  const upcomingRows: Array<{ region: Region; building: string; unit: UpcomingUnit }> = [];
 
   for (const row of rows) {
+    // Out-of-area buildings drop off the board entirely — this crew does not
+    // cover them, so showing them would be noise, not information.
+    const region = regionForCity(row.city);
+    if (!region) continue;
+
     const building = row.property_name?.trim() || "Unknown building";
     const unit = row.unit?.trim() || "—";
     const status = row.unit_status ?? "";
@@ -127,6 +174,7 @@ export function buildVacancyBoard(rows: VacancySnapshotRow[], today: string): Va
 
     if (status.startsWith("Vacant")) {
       vacantRows.push({
+        region,
         building,
         unit: {
           key,
@@ -142,6 +190,7 @@ export function buildVacancyBoard(rows: VacancySnapshotRow[], today: string): Va
       });
     } else if (status.startsWith("Notice")) {
       upcomingRows.push({
+        region,
         building,
         unit: {
           key,
@@ -156,30 +205,24 @@ export function buildVacancyBoard(rows: VacancySnapshotRow[], today: string): Va
     }
   }
 
-  const vacant = groupByBuilding(vacantRows);
-  for (const group of vacant) {
+  const vacant = groupByRegion(vacantRows, (units) =>
     // Longest-empty first inside each building.
-    group.units.sort(
-      (a, b) => (b.daysVacant ?? -1) - (a.daysVacant ?? -1) || compareUnits(a.unit, b.unit),
-    );
+    units.sort((a, b) => (b.daysVacant ?? -1) - (a.daysVacant ?? -1) || compareUnits(a.unit, b.unit)),
+  );
+  for (const area of vacant) {
+    area.longVacantCount = area.buildings
+      .flatMap((b) => b.units)
+      .filter((u) => (u.daysVacant ?? 0) >= 30).length;
   }
-  // Buildings in alphabetical order. The list is a lookup — "what's going on
-  // at Ascona?" — so a fixed A-Z order lets someone find a building by
-  // position, which an urgency-ranked order (where a building moves as its
-  // units age) does not. Urgency still shows in the day badges and in the
-  // unit order within each building.
-  vacant.sort((a, b) => compareBuildings(a.building, b.building));
 
-  const upcoming = groupByBuilding(upcomingRows);
-  for (const group of upcoming) {
+  const upcoming = groupByRegion(upcomingRows, (units) =>
     // Soonest move-out first — that is the date he has to plan around.
-    group.units.sort(
+    units.sort(
       (a, b) =>
         (a.daysUntilOut ?? Number.MAX_SAFE_INTEGER) - (b.daysUntilOut ?? Number.MAX_SAFE_INTEGER) ||
         compareUnits(a.unit, b.unit),
-    );
-  }
-  upcoming.sort((a, b) => compareBuildings(a.building, b.building));
+    ),
+  );
 
   return {
     vacant,

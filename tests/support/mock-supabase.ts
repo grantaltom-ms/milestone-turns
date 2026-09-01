@@ -11,6 +11,7 @@
 import { createServer, type IncomingMessage } from "node:http";
 import {
   APPFOLIO_UNITS,
+  BOARD_PROPERTY_ROWS,
   FIXTURE_ROWS,
   PROPERTY_ROWS,
   SNAPSHOT_DATE,
@@ -81,7 +82,12 @@ const server = createServer(async (req, res) => {
   }
 
   if (url.pathname === "/rest/v1/properties") {
-    return json(200, project([...PROPERTY_ROWS], url.searchParams.get("select")));
+    // Two callers read this table for different things: the board asks for
+    // `city` to place buildings in a service area, the sync route asks for
+    // `appfolio_id` to resolve ids. Serve each the fixture it is about.
+    const select = url.searchParams.get("select") ?? "";
+    const rows = select.includes("city") ? BOARD_PROPERTY_ROWS : PROPERTY_ROWS;
+    return json(200, project([...rows] as Record<string, unknown>[], select));
   }
 
   // The sync route reads this to decide which buildings get turns created.

@@ -21,8 +21,24 @@ function row(over: Partial<VacancySnapshotRow>): VacancySnapshotRow {
     last_move_out: "2026-08-01",
     available_on: null,
     next_move_in: null,
+    city: "Seattle",
     ...over,
   };
+}
+
+/** Buildings across every area, in board order. */
+function buildings<T>(areas: { buildings: { building: string; units: T[] }[] }[]) {
+  return areas.flatMap((a) => a.buildings);
+}
+
+/** Every unit on a tab, flattened. */
+function units<T>(areas: { buildings: { building: string; units: T[] }[] }[]): T[] {
+  return areas.flatMap((a) => a.buildings.flatMap((b) => b.units));
+}
+
+/** Only the areas that actually have units, by name. */
+function occupiedAreas(areas: { region: string; unitCount: number }[]) {
+  return areas.filter((a) => a.unitCount > 0).map((a) => a.region);
 }
 
 test("daysBetween counts whole days across a month boundary", () => {
@@ -70,10 +86,10 @@ test("splits vacant units from units on notice", () => {
   assert.equal(board.vacantCount, 2);
   assert.equal(board.upcomingCount, 2);
   assert.deepEqual(
-    board.vacant.flatMap((g) => g.units.map((u) => u.unit)).sort(),
+    units(board.vacant).map((u) => u.unit).sort(),
     ["101", "102"],
   );
-  assert.equal(board.vacant[0].units.find((u) => u.unit === "102")?.moveIn, "2026-09-10");
+  assert.equal(units(board.vacant).find((u) => u.unit === "102")?.moveIn, "2026-09-10");
 });
 
 test("counts days vacant and floors a future move-out at zero", () => {
@@ -85,10 +101,10 @@ test("counts days vacant and floors a future move-out at zero", () => {
     ],
     TODAY,
   );
-  const units = Object.fromEntries(board.vacant[0].units.map((u) => [u.unit, u.daysVacant]));
-  assert.equal(units["101"], 31);
-  assert.equal(units["102"], 0);
-  assert.equal(units["103"], null);
+  const byUnit = Object.fromEntries(units(board.vacant).map((u) => [u.unit, u.daysVacant]));
+  assert.equal(byUnit["101"], 31);
+  assert.equal(byUnit["102"], 0);
+  assert.equal(byUnit["103"], null);
 });
 
 test("lists vacant buildings alphabetically, not by how bad they are", () => {
@@ -105,11 +121,11 @@ test("lists vacant buildings alphabetically, not by how bad they are", () => {
     TODAY,
   );
   assert.deepEqual(
-    board.vacant.map((g) => g.building),
+    buildings(board.vacant).map((g) => g.building),
     ["Ascona", "Bel Vista", "Crosby", "Woodland"],
   );
   // Within a building, longest-empty still leads.
-  assert.deepEqual(board.vacant[0].units.map((u) => u.unit), ["2", "10"]);
+  assert.deepEqual(buildings(board.vacant)[0].units.map((u) => u.unit), ["2", "10"]);
 });
 
 test("sorts building names case-insensitively, and numeric-led ones by value", () => {
@@ -125,7 +141,7 @@ test("sorts building names case-insensitively, and numeric-led ones by value", (
   // "1255" before "9275" by value, not "1" before "9" then digit by digit —
   // and lowercase "ascona" still sorts with the A's, not after Z.
   assert.deepEqual(
-    board.vacant.map((g) => g.building),
+    buildings(board.vacant).map((g) => g.building),
     ["1255 Kearny St", "9275 Renton", "ascona", "Bel Vista"],
   );
 });
@@ -141,9 +157,9 @@ test("lists upcoming buildings alphabetically, soonest unit first within each", 
     ],
     TODAY,
   );
-  assert.deepEqual(board.upcoming.map((g) => g.building), ["DD Culp", "Envoy", "Woodland"]);
-  assert.deepEqual(board.upcoming[0].units.map((u) => u.unit), ["220", "116"]);
-  assert.equal(board.upcoming[0].units[0].daysUntilOut, 6);
+  assert.deepEqual(buildings(board.upcoming).map((g) => g.building), ["DD Culp", "Envoy", "Woodland"]);
+  assert.deepEqual(buildings(board.upcoming)[0].units.map((u) => u.unit), ["220", "116"]);
+  assert.equal(buildings(board.upcoming)[0].units[0].daysUntilOut, 6);
 });
 
 test("sorts unit numbers naturally, not as text", () => {
@@ -155,7 +171,7 @@ test("sorts unit numbers naturally, not as text", () => {
     ],
     TODAY,
   );
-  assert.deepEqual(board.vacant[0].units.map((u) => u.unit), ["1", "2", "10"]);
+  assert.deepEqual(buildings(board.vacant)[0].units.map((u) => u.unit), ["1", "2", "10"]);
 });
 
 test("counts units sitting 30+ days", () => {
@@ -176,11 +192,100 @@ test("survives missing building and unit names without dropping rows", () => {
     TODAY,
   );
   assert.equal(board.vacantCount, 2);
-  assert.equal(board.vacant[0].building, "Unknown building");
-  assert.equal(board.vacant[0].units[0].unit, "—");
+  assert.equal(buildings(board.vacant)[0].building, "Unknown building");
+  assert.equal(buildings(board.vacant)[0].units[0].unit, "—");
+});
+
+test("groups buildings into the four service areas, in a fixed order", () => {
+  const board = buildVacancyBoard(
+    [
+      row({ property_name: "Ascona", unit: "1", city: "Seattle" }),
+      row({ property_name: "Heather", unit: "2", city: "Renton" }),
+      row({ property_name: "Willow Lake", unit: "3", city: "SeaTac" }),
+      row({ property_name: "Stonehaven", unit: "4", city: "Des Moines" }),
+      row({ property_name: "Town & Country", unit: "5", city: "Bellevue" }),
+      row({ property_name: "Park Place", unit: "6", city: "Issaquah" }),
+      row({ property_name: "Redmond View", unit: "7", city: "Redmond" }),
+      row({ property_name: "The Frances", unit: "8", city: "Burien" }),
+    ],
+    TODAY,
+  );
+  assert.deepEqual(board.vacant.map((a) => a.region), ["Seattle", "SeaTac", "Eastside", "Burien"]);
+  assert.deepEqual(board.vacant.map((a) => a.unitCount), [2, 2, 3, 1]);
+  assert.equal(board.vacantCount, 8);
+});
+
+test("leaves out-of-area buildings off the board entirely", () => {
+  const board = buildVacancyBoard(
+    [
+      row({ property_name: "Ascona", unit: "1", city: "Seattle" }),
+      // The portfolio's two out-of-area properties.
+      row({ property_name: "1255 Kearny St", unit: "2", city: "San Francisco" }),
+      row({ property_name: "1803 F Street", unit: "3", city: "Vancouver" }),
+      // A building with no city at all must not sneak in either.
+      row({ property_name: "Mystery Building", unit: "4", city: null }),
+    ],
+    TODAY,
+  );
+  assert.equal(board.vacantCount, 1);
+  assert.deepEqual(units(board.vacant).map((u) => u.unit), ["1"]);
+  assert.deepEqual(buildings(board.vacant).map((b) => b.building), ["Ascona"]);
+});
+
+test("matches city names regardless of casing or spacing", () => {
+  // The live data carries both "SeaTac" and "Seatac".
+  const board = buildVacancyBoard(
+    [
+      row({ property_name: "A", unit: "1", city: "Seatac" }),
+      row({ property_name: "B", unit: "2", city: "SEATAC" }),
+      row({ property_name: "C", unit: "3", city: "  des   moines " }),
+      row({ property_name: "D", unit: "4", city: "seattle" }),
+    ],
+    TODAY,
+  );
+  const byRegion = Object.fromEntries(board.vacant.map((a) => [a.region, a.unitCount]));
+  assert.equal(byRegion.SeaTac, 3);
+  assert.equal(byRegion.Seattle, 1);
+  assert.equal(board.vacantCount, 4);
+});
+
+test("counts 30-day-old units per area as well as overall", () => {
+  const board = buildVacancyBoard(
+    [
+      row({ property_name: "Ascona", unit: "1", city: "Seattle", last_move_out: "2026-01-01" }),
+      row({ property_name: "Ascona", unit: "2", city: "Seattle", last_move_out: "2026-08-02" }),
+      row({ property_name: "Ascona", unit: "3", city: "Seattle", last_move_out: "2026-08-30" }),
+      row({ property_name: "The Frances", unit: "4", city: "Burien", last_move_out: "2026-08-30" }),
+    ],
+    TODAY,
+  );
+  const byRegion = Object.fromEntries(board.vacant.map((a) => [a.region, a.longVacantCount]));
+  assert.equal(byRegion.Seattle, 2);
+  assert.equal(byRegion.Burien, 0);
+  assert.equal(board.longVacantCount, 2);
+});
+
+test("groups upcoming units into areas too, with no aged count", () => {
+  const board = buildVacancyBoard(
+    [
+      row({ property_name: "DD Culp", unit: "1", city: "Seattle", unit_status: "Notice-Unrented", last_move_out: "2026-09-07" }),
+      row({ property_name: "Willow Lake", unit: "2", city: "SeaTac", unit_status: "Notice-Unrented", last_move_out: "2026-09-20" }),
+      row({ property_name: "1255 Kearny St", unit: "3", city: "San Francisco", unit_status: "Notice-Unrented", last_move_out: "2026-09-08" }),
+    ],
+    TODAY,
+  );
+  assert.equal(board.upcomingCount, 2);
+  assert.deepEqual(occupiedAreas(board.upcoming), ["Seattle", "SeaTac"]);
+  assert.deepEqual(board.upcoming.map((a) => a.longVacantCount), [0, 0, 0, 0]);
 });
 
 test("an empty snapshot produces empty lists, not a crash", () => {
   const board = buildVacancyBoard([], TODAY);
-  assert.deepEqual(board, { vacant: [], upcoming: [], vacantCount: 0, upcomingCount: 0, longVacantCount: 0 });
+  assert.equal(board.vacantCount, 0);
+  assert.equal(board.upcomingCount, 0);
+  assert.equal(board.longVacantCount, 0);
+  // All four areas are still emitted, at zero, so their positions stay fixed.
+  assert.deepEqual(board.vacant.map((a) => a.region), ["Seattle", "SeaTac", "Eastside", "Burien"]);
+  assert.deepEqual(board.vacant.map((a) => a.unitCount), [0, 0, 0, 0]);
+  assert.deepEqual(occupiedAreas(board.vacant), []);
 });
