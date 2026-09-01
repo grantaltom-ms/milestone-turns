@@ -1,8 +1,62 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServiceSupabase } from "@/lib/supabase/service";
-import { fetchVacantUnits } from "@/lib/appfolio";
+import { type AppfolioVacantUnit, fetchVacantUnits } from "@/lib/appfolio";
+import { todayInSeattle } from "@/lib/vacancy-board";
+import { buildSnapshotRows, type PropertyRef } from "@/lib/vacancy-snapshot";
 
 export const dynamic = "force-dynamic";
+
+type SnapshotResult = {
+  snapshot_date: string;
+  written: number;
+  /** AppFolio buildings with no row in `properties` — see buildSnapshotRows. */
+  unresolved: string[];
+  error?: string;
+};
+
+/**
+ * Write the day's portfolio-wide vacancy snapshot.
+ *
+ * Upserts on the table's natural key (snapshot_date, property_name, unit) so a
+ * re-run — a manual retry, or a Vercel retry after a timeout — updates the
+ * day's rows instead of failing on the unique index.
+ */
+async function writeVacancySnapshot(
+  supabase: ReturnType<typeof getServiceSupabase>,
+  units: AppfolioVacantUnit[],
+): Promise<SnapshotResult> {
+  const snapshotDate = todayInSeattle();
+  try {
+    const { data: properties, error: pErr } = await supabase
+      .from("properties")
+      .select("id, name, appfolio_id")
+      .eq("is_group", false);
+    if (pErr) throw pErr;
+
+    const { rows, unresolved } = buildSnapshotRows(
+      units,
+      (properties ?? []) as PropertyRef[],
+      snapshotDate,
+    );
+    if (rows.length === 0) {
+      return { snapshot_date: snapshotDate, written: 0, unresolved };
+    }
+
+    const { error } = await supabase
+      .from("unit_vacancy_snapshots")
+      .upsert(rows, { onConflict: "snapshot_date,property_name,unit" });
+    if (error) throw error;
+
+    return { snapshot_date: snapshotDate, written: rows.length, unresolved };
+  } catch (e) {
+    return {
+      snapshot_date: snapshotDate,
+      written: 0,
+      unresolved: [],
+      error: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
 
 // Secured with CRON_SECRET bearer token.
 // Vercel Cron always invokes cron paths with GET (never POST) and sends
@@ -19,13 +73,35 @@ export async function GET(req: NextRequest) {
 
   const supabase = getServiceSupabase();
 
+  // Fetch every vacant/notice unit from AppFolio. The create/update pass
+  // below only acts on Vacant-*, but auto-archiving (further down) needs the
+  // full set — Notice-* means a tenant gave notice, not that the unit is
+  // occupied, so it must NOT be treated as "no longer needs a turn".
+  //
+  // This runs before anything reads the per-building sync settings: the daily
+  // snapshot written next covers the whole portfolio, not just the buildings
+  // opted into turn creation, so it must not sit behind that gate.
+  let allUnits;
+  try {
+    allUnits = await fetchVacantUnits();
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "AppFolio fetch failed" }, { status: 502 });
+  }
+
+  // Record today's portfolio-wide vacancy snapshot. This is what the
+  // maintenance vacancy board reads, and it was previously only ever
+  // populated by hand-uploaded CSVs — so the board silently aged whenever
+  // nobody remembered to upload. A snapshot failure must not take the turn
+  // sync down with it, so it is reported rather than thrown.
+  const snapshot = await writeVacancySnapshot(supabase, allUnits);
+
   // Load enabled properties
   const { data: settings, error: sErr } = await supabase
     .from("appfolio_sync_settings")
     .select("property_id, default_assignee, properties(appfolio_id)")
     .eq("sync_enabled", true);
   if (sErr) {
-    return NextResponse.json({ error: sErr.message }, { status: 500 });
+    return NextResponse.json({ error: sErr.message, snapshot }, { status: 500 });
   }
 
   type SettingRow = {
@@ -45,18 +121,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (enabledMap.size === 0) {
-    return NextResponse.json({ created: 0, message: "No buildings enabled for sync" });
-  }
-
-  // Fetch every vacant/notice unit from AppFolio. The create/update pass
-  // below only acts on Vacant-*, but auto-archiving (further down) needs the
-  // full set — Notice-* means a tenant gave notice, not that the unit is
-  // occupied, so it must NOT be treated as "no longer needs a turn".
-  let allUnits;
-  try {
-    allUnits = await fetchVacantUnits();
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "AppFolio fetch failed" }, { status: 502 });
+    return NextResponse.json({ created: 0, snapshot, message: "No buildings enabled for sync" });
   }
 
   const sbPropertyIds = Array.from(new Set(Array.from(enabledMap.values()).map((m) => m.sb_property_id)));
@@ -188,6 +253,7 @@ export async function GET(req: NextRequest) {
     skipped: skipped.length,
     archived: archived.length,
     errors: errors.length,
+    snapshot,
     detail: { created, updated, skipped, archived, errors },
   });
 }

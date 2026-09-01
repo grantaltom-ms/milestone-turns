@@ -82,6 +82,109 @@ Email + password sign-in via Supabase Auth. To turn on the gate, set
 With the gate off (default for local dev) the app loads as `TZ` (or whatever
 `NEXT_PUBLIC_DEFAULT_USER_INITIALS` is set to) so you can develop without auth.
 
+## Maintenance vacancy board
+
+A standalone, read-only page for the head of maintenance at
+`/vacancies/<code>` — no sign-in, no navigation, nothing clickable into the
+turns board. Two tabs:
+
+- **Vacant Now** — every empty unit, grouped by building, with a badge showing
+  how many days it has been sitting. Buildings are ordered worst-first, and the
+  badge turns amber at 15 days and brick at 30.
+- **Coming Up** — units whose tenant has given notice, soonest move-out first.
+
+It reads the newest row set in `unit_vacancy_snapshots`, so it covers the
+whole portfolio rather than only the buildings enabled for turn sync. The
+header shows the snapshot's date, so a stale feed is visible rather than
+silently wrong.
+
+### Where the snapshot comes from
+
+The nightly cron (`/api/appfolio/sync`, 08:00 UTC — just after midnight
+Pacific) writes that day's snapshot from AppFolio's `unit_vacancy` report
+before it does any turn syncing. Rows are tagged
+`source_file = 'appfolio_api:unit_vacancy'`, which distinguishes them from
+the hand-uploaded `unit_vacancy_detail-*.csv` snapshots that used to be the
+only source.
+
+Details worth knowing:
+
+- **It covers every building**, not just the ones enabled for turn creation.
+  The snapshot write deliberately runs before the per-building
+  `appfolio_sync_settings` gate.
+- **`property_id` holds the Supabase `properties.id`**, not AppFolio's — the
+  manager-facing views (`unit_vacancy_with_manager` and friends) join on it.
+  Resolution prefers `properties.appfolio_id` and falls back to an exact
+  case-insensitive name match.
+- **A building it cannot resolve is still recorded**, with a null
+  `property_id`, and named in the sync response's `snapshot.unresolved`.
+  Losing a whole building's vacancies would be worse than losing its manager
+  join.
+- **Re-running the same day is safe.** The write upserts on the table's
+  natural key `(snapshot_date, property_name, unit)`.
+- **A snapshot failure does not take turn syncing down**; it is reported
+  under `snapshot.error` in the response.
+
+Address and listing columns (`street_address`, `city`, `state`, `zip`,
+`description`) are passed through only if the JSON report returns them under
+those names. The CSV export carries them; the API is unconfirmed. To check
+after a real run:
+
+```sql
+select count(*) filter (where city is not null) as with_city, count(*)
+from unit_vacancy_snapshots
+where source_file = 'appfolio_api:unit_vacancy'
+  and snapshot_date = current_date;
+```
+
+### Setup
+
+1. Generate a code and set it as `VACANCY_LINK_CODE` in the Vercel project
+   (and `.env.local` for dev):
+   ```bash
+   openssl rand -hex 24
+   ```
+   The code is the only thing protecting the page. Anything under 16
+   characters is rejected and the board returns 404 for everyone — it fails
+   closed rather than going public.
+2. Send him `https://milestonepm.app/vacancies/<code>` and have him add it to
+   his phone's home screen.
+
+   Use the **custom domain**, not a `*.vercel.app` URL. The project's Vercel
+   deployment protection is set to `all_except_custom_domains`, so every
+   `*.vercel.app` host (previews and the default production URL alike) demands
+   a Vercel login first — which is exactly the friction this page exists to
+   avoid. `milestonepm.app` is exempt.
+
+To rotate the link, change the env var and redeploy; the old URL 404s
+immediately.
+
+## Testing
+
+```bash
+npm run lint        # eslint
+npm run typecheck   # tsc --noEmit
+npm run test:unit   # node --test, pure logic
+npm run test:e2e    # Playwright, drives the real page in a browser
+npm test            # unit + e2e
+```
+
+The end-to-end suite runs against a **production build** (`next build && next
+start`), not `next dev` — dev mode blocks cross-origin dev resources, so
+nothing hydrates under test. It serves fixture data from a mock PostgREST
+server (`tests/support/mock-supabase.ts`), so it never touches Supabase or
+AppFolio and the expected day counts stay stable whenever it runs.
+
+In a sandbox with Chromium already installed, point Playwright at it instead
+of downloading one:
+
+```bash
+PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium npm run test:e2e
+```
+
+GitHub Actions runs lint, typecheck, unit tests, build and the browser suite on
+every push and pull request (`.github/workflows/ci.yml`).
+
 ## Deploy
 
 Push to Vercel. Set the four env vars in the Vercel project settings. Done.

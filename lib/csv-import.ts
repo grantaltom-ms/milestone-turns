@@ -84,8 +84,8 @@ export function toIsoDate(s: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
   const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec(t);
   if (!m) return "";
-  let [, mo, da, yr] = m;
-  if (yr.length === 2) yr = (Number(yr) >= 70 ? "19" : "20") + yr;
+  const [, mo, da, rawYear] = m;
+  const yr = rawYear.length === 2 ? (Number(rawYear) >= 70 ? "19" : "20") + rawYear : rawYear;
   return `${yr}-${mo.padStart(2, "0")}-${da.padStart(2, "0")}`;
 }
 

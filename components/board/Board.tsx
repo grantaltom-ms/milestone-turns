@@ -65,6 +65,8 @@ export function Board({
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("board:openBuildings");
+      // Mount-only hydration from an external store, not a render loop.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setOpenBuildings(new Set(JSON.parse(raw) as string[]));
     } catch {}
   }, []);

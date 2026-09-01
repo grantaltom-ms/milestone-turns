@@ -5,7 +5,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Auth is always required — no env-var toggle. Public paths below are the only exceptions.
 // Paths that never require auth
-const PUBLIC_PREFIXES = ["/login", "/auth/", "/onboarding"];
+// /vacancies is the read-only maintenance vacancy board: no sign-in, guarded
+// instead by the secret code in its own URL (see lib/vacancy-link.ts).
+const PUBLIC_PREFIXES = ["/login", "/auth/", "/onboarding", "/vacancies"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

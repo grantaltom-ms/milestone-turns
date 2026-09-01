@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  # Branch work is verified through its pull request; main is verified on push
+  # so merges are covered. Listing both `push: ["**"]` and `pull_request` would
+  # fire two events for one commit — either double the work, or (with the
+  # concurrency group below) one run cancelling the other and leaving a
+  # cancelled check on the PR that reads like a failure.
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  # Successive pushes to the same branch supersede each other; only one event
+  # type fires per commit, so nothing here cancels a run that had to happen.
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build-time placeholders. Every page that reads Supabase is
+          # force-dynamic, so nothing actually connects during the build.
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: build-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: build-placeholder
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
