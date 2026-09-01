@@ -72,13 +72,27 @@ export function Detail({
   const holdColor = isBlocked ? "#8B4A2F" : "#C8922A";
   const holdLabel = isBlocked ? t("status.blocked") : t("status.onHold");
 
-  // Both states are optimistically mutated locally, then reset when a
-  // router.refresh() delivers fresh server props. Pre-existing pattern; a
-  // proper `key`-based reset is tracked separately.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setTasks(turn.tasks); }, [turn.tasks]);
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { setSkipped(new Set(turn.skipped_phases ?? [])); }, [turn.skipped_phases]);
+  // `tasks` and `skipped` are optimistic local mirrors of the server props: an
+  // interaction mutates them immediately, then the server action — or a realtime
+  // event from another user — triggers router.refresh() and fresh props land
+  // here, re-syncing the mirror to server truth.
+  //
+  // This re-sync happens during render rather than in an effect. An effect would
+  // commit one paint where `tasks` is stale but `turn.tasks` is fresh; adjusting
+  // during render re-renders before that paint. Unlike a `key` on this component
+  // it also preserves the rest of the local UI state, so another user's change
+  // arriving over realtime does not close an open sheet or the assignee picker.
+  // https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  const [prevTasks, setPrevTasks] = useState(turn.tasks);
+  if (prevTasks !== turn.tasks) {
+    setPrevTasks(turn.tasks);
+    setTasks(turn.tasks);
+  }
+  const [prevSkippedPhases, setPrevSkippedPhases] = useState(turn.skipped_phases);
+  if (prevSkippedPhases !== turn.skipped_phases) {
+    setPrevSkippedPhases(turn.skipped_phases);
+    setSkipped(new Set(turn.skipped_phases ?? []));
+  }
 
   useEffect(() => {
     const supabase = getBrowserSupabase();
