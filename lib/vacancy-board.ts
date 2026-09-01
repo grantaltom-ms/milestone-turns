@@ -108,6 +108,12 @@ function compareUnits(a: string, b: string): number {
   return a.localeCompare(b, "en", { numeric: true, sensitivity: "base" });
 }
 
+/** A-Z by building name, case-insensitive, with numeric-led names ("9275
+ *  Renton") ordered by value rather than digit by digit. */
+function compareBuildings(a: string, b: string): number {
+  return a.localeCompare(b, "en", { numeric: true, sensitivity: "base" });
+}
+
 export function buildVacancyBoard(rows: VacancySnapshotRow[], today: string): VacancyBoard {
   const vacantRows: Array<{ building: string; unit: VacantUnit }> = [];
   const upcomingRows: Array<{ building: string; unit: UpcomingUnit }> = [];
@@ -157,16 +163,14 @@ export function buildVacancyBoard(rows: VacancySnapshotRow[], today: string): Va
       (a, b) => (b.daysVacant ?? -1) - (a.daysVacant ?? -1) || compareUnits(a.unit, b.unit),
     );
   }
-  // Buildings ordered by their worst unit, so the biggest problems are on top.
-  vacant.sort(
-    (a, b) =>
-      (b.units[0]?.daysVacant ?? -1) - (a.units[0]?.daysVacant ?? -1) ||
-      a.building.localeCompare(b.building),
-  );
+  // Buildings in alphabetical order. The list is a lookup — "what's going on
+  // at Ascona?" — so a fixed A-Z order lets someone find a building by
+  // position, which an urgency-ranked order (where a building moves as its
+  // units age) does not. Urgency still shows in the day badges and in the
+  // unit order within each building.
+  vacant.sort((a, b) => compareBuildings(a.building, b.building));
 
   const upcoming = groupByBuilding(upcomingRows);
-  const soonest = (units: UpcomingUnit[]) =>
-    units.reduce<number>((min, u) => Math.min(min, u.daysUntilOut ?? Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER);
   for (const group of upcoming) {
     // Soonest move-out first — that is the date he has to plan around.
     group.units.sort(
@@ -175,9 +179,7 @@ export function buildVacancyBoard(rows: VacancySnapshotRow[], today: string): Va
         compareUnits(a.unit, b.unit),
     );
   }
-  upcoming.sort(
-    (a, b) => soonest(a.units) - soonest(b.units) || a.building.localeCompare(b.building),
-  );
+  upcoming.sort((a, b) => compareBuildings(a.building, b.building));
 
   return {
     vacant,

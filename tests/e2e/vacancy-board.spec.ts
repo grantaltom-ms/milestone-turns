@@ -45,14 +45,15 @@ test.describe("maintenance vacancy board", () => {
     }
 
     // A unit with no move-out date still appears, marked as unknown.
-    await expect(unitRow(page, "Woodland", "9")).toContainText("Move-out date unknown");
+    await expect(unitRow(page, "Alder Court", "9")).toContainText("Move-out date unknown");
   });
 
-  test("puts the longest-empty buildings and units first", async ({ page }) => {
+  test("lists buildings alphabetically, longest-empty unit first within each", async ({ page }) => {
     await page.goto(BOARD_URL);
 
-    // Ascona 105 (62d) beats Bel Vista (44d), Crosby (31d), Woodland (1d).
-    expect(await buildingNames(page)).toEqual(["Ascona", "Bel Vista", "Crosby", "Woodland"]);
+    // Alder Court holds the *least* urgent units (1 day) yet leads the list,
+    // and Ascona's 62-day unit does not pull it to the top: A-Z, not worst-first.
+    expect(await buildingNames(page)).toEqual(["Alder Court", "Ascona", "Bel Vista", "Crosby"]);
 
     const asconaUnits = await page
       .locator("section")
@@ -73,15 +74,22 @@ test.describe("maintenance vacancy board", () => {
     await expect(page.getByText(`${VACANT_COUNT} units in 4 buildings · 3 over 30 days`)).toBeVisible();
   });
 
-  test("Coming Up lists notice units, soonest move-out first", async ({ page }) => {
+  test("Coming Up lists buildings alphabetically, soonest move-out first within each", async ({ page }) => {
     await page.goto(BOARD_URL);
     await page.getByRole("tab", { name: /Coming Up/ }).click();
 
     await expect(page.getByRole("tab", { name: /Coming Up/ })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("listitem")).toHaveCount(UPCOMING_COUNT);
 
-    // DD Culp's soonest (6 days) leads, then Envoy (14), then Kerry Park (45).
+    // Kerry Park has the soonest move-out (6 days) but still sorts last: A-Z.
     expect(await buildingNames(page)).toEqual(["DD Culp", "Envoy", "Kerry Park"]);
+    // Within DD Culp, the sooner move-out (116 at 29 days) leads 220 at 34.
+    const ddCulpUnits = await page
+      .locator("section")
+      .filter({ has: page.getByRole("heading", { name: "DD Culp", exact: true }) })
+      .locator("li > div > div > span:first-child")
+      .allTextContents();
+    expect(ddCulpUnits).toEqual(["116", "220"]);
 
     for (const [key, days] of Object.entries(EXPECTED_DAYS_UNTIL_OUT)) {
       const [building, unit] = key.split(":");

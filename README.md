@@ -89,9 +89,16 @@ A standalone, read-only page for the head of maintenance at
 turns board. Two tabs:
 
 - **Vacant Now** — every empty unit, grouped by building, with a badge showing
-  how many days it has been sitting. Buildings are ordered worst-first, and the
-  badge turns amber at 15 days and brick at 30.
-- **Coming Up** — units whose tenant has given notice, soonest move-out first.
+  how many days it has been sitting. The badge turns amber at 15 days and
+  brick at 30.
+- **Coming Up** — units whose tenant has given notice, with days until move-out.
+
+Buildings are listed A-Z on both tabs. The board is a lookup — "what's going
+on at Ascona?" — so a fixed order lets someone find a building by position,
+which an urgency-ranked order (where a building moves as its units age) does
+not. Urgency still reads off the day badges, and within each building the
+units are ordered by it: longest-empty first on Vacant Now, soonest move-out
+first on Coming Up.
 
 It reads the newest row set in `unit_vacancy_snapshots`, so it covers the
 whole portfolio rather than only the buildings enabled for turn sync. The

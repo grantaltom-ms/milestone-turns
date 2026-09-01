@@ -91,31 +91,57 @@ test("counts days vacant and floors a future move-out at zero", () => {
   assert.equal(units["103"], null);
 });
 
-test("orders buildings by their longest-empty unit, worst first", () => {
+test("lists vacant buildings alphabetically, not by how bad they are", () => {
   const board = buildVacancyBoard(
     [
       row({ property_name: "Bel Vista", unit: "1", last_move_out: "2026-08-25" }),
       row({ property_name: "Ascona", unit: "2", last_move_out: "2026-06-01" }),
       row({ property_name: "Ascona", unit: "10", last_move_out: "2026-08-30" }),
       row({ property_name: "Crosby", unit: "3", last_move_out: "2026-08-28" }),
+      // Longest-empty of the lot, but alphabetically last — it must not jump
+      // to the top the way an urgency-ranked order would put it.
+      row({ property_name: "Woodland", unit: "4", last_move_out: "2026-01-01" }),
     ],
     TODAY,
   );
-  assert.deepEqual(board.vacant.map((g) => g.building), ["Ascona", "Bel Vista", "Crosby"]);
-  // Longest-empty unit leads its own building too.
+  assert.deepEqual(
+    board.vacant.map((g) => g.building),
+    ["Ascona", "Bel Vista", "Crosby", "Woodland"],
+  );
+  // Within a building, longest-empty still leads.
   assert.deepEqual(board.vacant[0].units.map((u) => u.unit), ["2", "10"]);
 });
 
-test("orders upcoming move-outs soonest first", () => {
+test("sorts building names case-insensitively, and numeric-led ones by value", () => {
+  const board = buildVacancyBoard(
+    [
+      row({ property_name: "ascona", unit: "1", last_move_out: "2026-08-01" }),
+      row({ property_name: "9275 Renton", unit: "2", last_move_out: "2026-08-01" }),
+      row({ property_name: "1255 Kearny St", unit: "3", last_move_out: "2026-08-01" }),
+      row({ property_name: "Bel Vista", unit: "4", last_move_out: "2026-08-01" }),
+    ],
+    TODAY,
+  );
+  // "1255" before "9275" by value, not "1" before "9" then digit by digit —
+  // and lowercase "ascona" still sorts with the A's, not after Z.
+  assert.deepEqual(
+    board.vacant.map((g) => g.building),
+    ["1255 Kearny St", "9275 Renton", "ascona", "Bel Vista"],
+  );
+});
+
+test("lists upcoming buildings alphabetically, soonest unit first within each", () => {
   const board = buildVacancyBoard(
     [
       row({ property_name: "Envoy", unit: "106", unit_status: "Notice-Unrented", last_move_out: "2026-09-30", available_on: "2026-10-10" }),
       row({ property_name: "DD Culp", unit: "220", unit_status: "Notice-Unrented", last_move_out: "2026-09-07", available_on: "2026-09-17" }),
       row({ property_name: "DD Culp", unit: "116", unit_status: "Notice-Unrented", last_move_out: "2026-09-30", available_on: "2026-10-10" }),
+      // Soonest move-out overall, but alphabetically last.
+      row({ property_name: "Woodland", unit: "5", unit_status: "Notice-Unrented", last_move_out: "2026-09-02", available_on: "2026-09-12" }),
     ],
     TODAY,
   );
-  assert.deepEqual(board.upcoming.map((g) => g.building), ["DD Culp", "Envoy"]);
+  assert.deepEqual(board.upcoming.map((g) => g.building), ["DD Culp", "Envoy", "Woodland"]);
   assert.deepEqual(board.upcoming[0].units.map((u) => u.unit), ["220", "116"]);
   assert.equal(board.upcoming[0].units[0].daysUntilOut, 6);
 });
