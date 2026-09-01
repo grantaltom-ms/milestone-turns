@@ -93,10 +93,49 @@ turns board. Two tabs:
   badge turns amber at 15 days and brick at 30.
 - **Coming Up** — units whose tenant has given notice, soonest move-out first.
 
-It reads the newest row set in `unit_vacancy_snapshots` (the daily AppFolio
-unit-vacancy export), so it covers the whole portfolio rather than only the
-buildings enabled for turn sync. The header shows the snapshot's date, so a
-stale feed is visible rather than silently wrong.
+It reads the newest row set in `unit_vacancy_snapshots`, so it covers the
+whole portfolio rather than only the buildings enabled for turn sync. The
+header shows the snapshot's date, so a stale feed is visible rather than
+silently wrong.
+
+### Where the snapshot comes from
+
+The nightly cron (`/api/appfolio/sync`, 08:00 UTC — just after midnight
+Pacific) writes that day's snapshot from AppFolio's `unit_vacancy` report
+before it does any turn syncing. Rows are tagged
+`source_file = 'appfolio_api:unit_vacancy'`, which distinguishes them from
+the hand-uploaded `unit_vacancy_detail-*.csv` snapshots that used to be the
+only source.
+
+Details worth knowing:
+
+- **It covers every building**, not just the ones enabled for turn creation.
+  The snapshot write deliberately runs before the per-building
+  `appfolio_sync_settings` gate.
+- **`property_id` holds the Supabase `properties.id`**, not AppFolio's — the
+  manager-facing views (`unit_vacancy_with_manager` and friends) join on it.
+  Resolution prefers `properties.appfolio_id` and falls back to an exact
+  case-insensitive name match.
+- **A building it cannot resolve is still recorded**, with a null
+  `property_id`, and named in the sync response's `snapshot.unresolved`.
+  Losing a whole building's vacancies would be worse than losing its manager
+  join.
+- **Re-running the same day is safe.** The write upserts on the table's
+  natural key `(snapshot_date, property_name, unit)`.
+- **A snapshot failure does not take turn syncing down**; it is reported
+  under `snapshot.error` in the response.
+
+Address and listing columns (`street_address`, `city`, `state`, `zip`,
+`description`) are passed through only if the JSON report returns them under
+those names. The CSV export carries them; the API is unconfirmed. To check
+after a real run:
+
+```sql
+select count(*) filter (where city is not null) as with_city, count(*)
+from unit_vacancy_snapshots
+where source_file = 'appfolio_api:unit_vacancy'
+  and snapshot_date = current_date;
+```
 
 ### Setup
 

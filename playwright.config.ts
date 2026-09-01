@@ -43,6 +43,12 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
         SUPABASE_SERVICE_ROLE_KEY: "test-service-key",
         VACANCY_LINK_CODE: "e2e-test-code-0123456789abcdef",
+        // The same stand-in server answers AppFolio's report endpoint, so the
+        // nightly sync route runs for real without credentials or network.
+        APPFOLIO_BASE_URL: `http://127.0.0.1:${MOCK_SUPABASE_PORT}`,
+        APPFOLIO_CLIENT_ID: "test-client",
+        APPFOLIO_CLIENT_SECRET: "test-secret",
+        CRON_SECRET: "e2e-cron-secret",
       },
     },
   ],

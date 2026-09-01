@@ -26,6 +26,15 @@ export interface AppfolioVacantUnit {
   days_vacant: number | null;
   available_on: string | null;
   unit_turn_target_date: string | null;
+  /** Listing/address detail. The CSV export of this report carries these, but
+   *  whether the JSON API returns them under these names is unconfirmed — so
+   *  they are best-effort and null when absent. Nothing depends on them: they
+   *  only enrich `unit_vacancy_snapshots` for the manager-facing views. */
+  description: string | null;
+  street_address: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
 }
 
 function authHeader(): string {
@@ -53,14 +62,31 @@ type UnitVacancyRow = {
   days_vacant: number | null;
   available_on: string | null;
   unit_turn_target_date: string | null;
+  // Optional: present in the report's CSV export, unconfirmed in the JSON API.
+  description?: string | null;
+  street_address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
 };
 
-export async function fetchVacantUnits(): Promise<AppfolioVacantUnit[]> {
+/**
+ * Base URL for the AppFolio API. `APPFOLIO_BASE_URL` overrides the derived
+ * `https://<subdomain>` — set only by the test harness, which points it at a
+ * local stand-in so the sync route can be exercised end to end without
+ * credentials or network access.
+ */
+function apiBaseUrl(): string {
+  const override = process.env.APPFOLIO_BASE_URL;
+  if (override) return override.replace(/\/+$/, "");
   const subdomain = process.env.APPFOLIO_SUBDOMAIN;
   if (!subdomain) throw new Error("APPFOLIO_SUBDOMAIN must be set");
+  return `https://${subdomain}`;
+}
 
+export async function fetchVacantUnits(): Promise<AppfolioVacantUnit[]> {
   const auth = authHeader();
-  let url: string | null = `https://${subdomain}/api/v2/reports/unit_vacancy.json`;
+  let url: string | null = `${apiBaseUrl()}/api/v2/reports/unit_vacancy.json`;
   const rows: UnitVacancyRow[] = [];
 
   while (url) {
@@ -108,5 +134,10 @@ export async function fetchVacantUnits(): Promise<AppfolioVacantUnit[]> {
       days_vacant: r.days_vacant ?? null,
       available_on: r.available_on ?? null,
       unit_turn_target_date: r.unit_turn_target_date ?? null,
+      description: r.description ?? null,
+      street_address: r.street_address ?? null,
+      city: r.city ?? null,
+      state: r.state ?? null,
+      zip: r.zip ?? null,
     }));
 }

@@ -81,6 +81,65 @@ export const FIXTURE_ROWS: FixtureRow[] = [
 export const VACANT_COUNT = FIXTURE_ROWS.filter((r) => r.unit_status.startsWith("Vacant")).length;
 export const UPCOMING_COUNT = FIXTURE_ROWS.filter((r) => r.unit_status.startsWith("Notice")).length;
 
+// ── Fixtures for the nightly sync route ─────────────────────────────────────
+
+/** `properties` rows the sync route resolves AppFolio ids against. */
+export const PROPERTY_ROWS = [
+  { id: 185, name: "Ascona", appfolio_id: "111" },
+  { id: 190, name: "Ansonia", appfolio_id: "110" },
+  // Deliberately unmapped: only a name match can resolve this one.
+  { id: 223, name: "9275 Renton", appfolio_id: null },
+];
+
+/** Raw `unit_vacancy` report rows, in AppFolio's own field names. */
+export const APPFOLIO_UNITS = [
+  {
+    property_id: 111, property_name: "Ascona", unit: "105", unit_id: 9001,
+    unit_status: "Vacant-Unrented", last_move_out: ago(62), computed_market_rent: "1495",
+    sqft: 327, bed_and_bath: "0/1.00", rent_ready: null, next_move_in: null,
+    days_vacant: 62, available_on: ago(52), unit_turn_target_date: null,
+  },
+  {
+    property_id: 111, property_name: "Ascona", unit: "202", unit_id: 9002,
+    unit_status: "Vacant-Rented", last_move_out: ago(12), computed_market_rent: "1650",
+    sqft: 315, bed_and_bath: "1/1.00", rent_ready: null, next_move_in: ahead(9),
+    days_vacant: 12, available_on: ago(2), unit_turn_target_date: null,
+  },
+  {
+    property_id: 110, property_name: "Ansonia", unit: "3", unit_id: 9003,
+    unit_status: "Notice-Unrented", last_move_out: ahead(14), computed_market_rent: "1800",
+    sqft: 600, bed_and_bath: "1/1.00", rent_ready: null, next_move_in: null,
+    days_vacant: null, available_on: ahead(24), unit_turn_target_date: null,
+  },
+  // Resolvable only by name — its AppFolio id is not in PROPERTY_ROWS.
+  {
+    property_id: 777, property_name: "9275 Renton", unit: "A", unit_id: 9004,
+    unit_status: "Vacant-Unrented", last_move_out: ago(5), computed_market_rent: "1400",
+    sqft: 500, bed_and_bath: "2/1.50", rent_ready: null, next_move_in: null,
+    days_vacant: 5, available_on: ago(1), unit_turn_target_date: null,
+  },
+  // Resolvable by neither — must still be recorded, and reported as unresolved.
+  {
+    property_id: 4242, property_name: "Brand New Building", unit: "1", unit_id: 9005,
+    unit_status: "Vacant-Unrented", last_move_out: ago(3), computed_market_rent: "2000",
+    sqft: 700, bed_and_bath: "1/1.00", rent_ready: null, next_move_in: null,
+    days_vacant: 3, available_on: ago(1), unit_turn_target_date: null,
+  },
+  // Occupied — fetchVacantUnits filters these out before the snapshot write.
+  {
+    property_id: 111, property_name: "Ascona", unit: "300", unit_id: 9006,
+    unit_status: "Occupied", last_move_out: ago(400), computed_market_rent: "1500",
+    sqft: 400, bed_and_bath: "1/1.00", rent_ready: null, next_move_in: null,
+    days_vacant: null, available_on: null, unit_turn_target_date: null,
+  },
+];
+
+/** Buildings the sync route cannot map to a Supabase property. */
+export const EXPECTED_UNRESOLVED = ["Brand New Building"];
+
+/** Units expected in the snapshot write: every vacant or notice row above. */
+export const EXPECTED_SNAPSHOT_UNITS = ["105", "202", "3", "A", "1"];
+
 /** An older snapshot the board must ignore in favour of the newest one. */
 export const STALE_SNAPSHOT_DATE = shiftDays(SNAPSHOT_DATE, -1);
 export const STALE_ROWS: FixtureRow[] = [
