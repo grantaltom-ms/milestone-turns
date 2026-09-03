@@ -22,6 +22,7 @@ import { TaskNotes } from "@/components/TaskNotes";
 import { UserHeader } from "@/components/UserHeader";
 import { RevertSheet } from "@/components/detail/RevertSheet";
 import { ActivityLog } from "@/components/detail/ActivityLog";
+import { relativeTime } from "@/lib/activity-format";
 import {
   avatarColorFromProfiles,
   formatDate,
@@ -623,7 +624,10 @@ function StageSection({
       : interactivity === "past" && tasks.some((t) => !t.done),
   );
   const [newTaskName, setNewTaskName] = useState("");
-  const doneCount = tasks.filter((t) => t.done).length;
+  const [completedOpen, setCompletedOpen] = useState(false);
+  const activeTasks = tasks.filter((t) => !t.done);
+  const completedTasks = tasks.filter((t) => t.done);
+  const doneCount = completedTasks.length;
   const totalCount = tasks.length;
   const canReassign = interactivity !== "past" && !skipped;
   // Adding a task to a past phase is office/admin-only (reopening completed
@@ -758,7 +762,7 @@ function StageSection({
             </div>
           )}
 
-          {tasks.map((task) => (
+          {activeTasks.map((task) => (
             <TaskRow
               key={task.id}
               task={task}
@@ -773,6 +777,59 @@ function StageSection({
               onDelete={onDeleteTask}
             />
           ))}
+
+          {completedTasks.length > 0 && (
+            <div style={{ marginTop: activeTasks.length > 0 ? 4 : 0 }}>
+              <button
+                type="button"
+                onClick={() => setCompletedOpen((v) => !v)}
+                aria-expanded={completedOpen}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  background: "transparent",
+                  border: "none",
+                  padding: "6px 4px",
+                  cursor: "pointer",
+                  color: "rgba(11,27,43,0.45)",
+                  fontWeight: 600,
+                  fontSize: 11.5,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 10,
+                    transform: completedOpen ? "rotate(90deg)" : "rotate(0)",
+                    transition: "transform 0.15s",
+                  }}
+                  aria-hidden="true"
+                >
+                  ▸
+                </span>
+                {t("stage.completedGroup", { n: completedTasks.length })}
+              </button>
+              {completedOpen && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 2 }}>
+                  {completedTasks.map((task) => (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      interactivity={interactivity}
+                      skipped={skipped}
+                      profiles={profiles}
+                      notes={notesByTask.get(task.name) ?? []}
+                      turnId={turnId}
+                      stageIdx={stageIdx}
+                      onToggle={onToggle}
+                      onReassign={onReassignTask}
+                      onDelete={onDeleteTask}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {canEditTasks && (
             <form
@@ -941,6 +998,11 @@ function TaskRow({
             {skipped && (
               <span style={{ marginLeft: 7, fontSize: 11, fontWeight: 600, color: "rgba(11,27,43,0.4)", textDecoration: "none" }}>
                 {t("task.na")}
+              </span>
+            )}
+            {task.done && task.done_at && (
+              <span style={{ display: "block", fontSize: 11.5, fontWeight: 400, color: "rgba(11,27,43,0.4)", textDecoration: "none", marginTop: 2 }}>
+                {t("task.completedMeta", { who: task.completed_by ?? "?", when: relativeTime(task.done_at, t) })}
               </span>
             )}
           </span>
