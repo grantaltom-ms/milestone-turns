@@ -572,52 +572,6 @@ export async function togglePhaseSkipAction(turnId: string, stageIdx: number, sk
   revalidatePath("/");
 }
 
-export async function putTurnOnHoldAction(
-  turnId: string,
-  holdStatus: "on_hold" | "blocked",
-  holdReason: string,
-) {
-  const supabase = await getServerSupabase();
-  const reason = holdReason.trim();
-  const { data, error } = await supabase
-    .from("turns")
-    .update({
-      hold_status: holdStatus,
-      hold_reason: reason,
-      held_at: new Date().toISOString(),
-    })
-    .eq("id", turnId)
-    .select("unit, assignee")
-    .maybeSingle();
-  if (error) throw error;
-
-  const me = await actor();
-  await logEvent(turnId, "held", me, { hold_status: holdStatus, reason });
-
-  revalidatePath(`/turns/${turnId}`);
-  revalidatePath("/");
-
-  if (data) {
-    const { notifyOnHold } = await import("@/lib/slack");
-    await notifyOnHold({ turnId, unit: data.unit, assignee: data.assignee, holdStatus, reason });
-  }
-}
-
-export async function resumeTurnAction(turnId: string) {
-  const supabase = await getServerSupabase();
-  const { error } = await supabase
-    .from("turns")
-    .update({ hold_status: null, hold_reason: null, held_at: null })
-    .eq("id", turnId);
-  if (error) throw error;
-
-  const me = await actor();
-  await logEvent(turnId, "resumed", me);
-
-  revalidatePath(`/turns/${turnId}`);
-  revalidatePath("/");
-}
-
 export async function revertTurnAction(turnId: string, reason: string) {
   const supabase = await getServerSupabase();
   const { error } = await supabase.rpc("revert_turn", { p_turn_id: turnId, p_reason: reason });

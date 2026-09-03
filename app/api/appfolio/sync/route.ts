@@ -236,7 +236,7 @@ export async function GET(req: NextRequest) {
   // in-progress work is never hidden based on an AppFolio field that could
   // lag reality. Soft delete (archived_at), not destroyed — still reachable
   // by direct link and in the admin activity feed.
-  const readyTurns = (existingTurns ?? []).filter((t) => t.stage_idx === 4);
+  const readyTurns = (existingTurns ?? []).filter((t) => t.stage_idx === 3);
   for (const t of readyTurns) {
     if (stillListedKeys.has(`${t.property_id}:${normalizeUnit(t.unit)}`)) continue;
     try {

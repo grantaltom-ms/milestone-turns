@@ -102,14 +102,3 @@ export async function notifyTaskReopened(payload: TaskReopenedPayload): Promise<
   );
 }
 
-type OnHoldPayload = {
-  turnId: string;
-  unit: string;
-  assignee: string;
-  holdStatus: "on_hold" | "blocked";
-  reason: string;
-};
-export async function notifyOnHold(payload: OnHoldPayload): Promise<void> {
-  const label = payload.holdStatus === "blocked" ? "blocked" : "put on hold";
-  await notify(payload.assignee, payload.turnId, `:pause_button: Unit *${payload.unit}* was ${label}: ${payload.reason}`);
-}

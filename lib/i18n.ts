@@ -13,7 +13,6 @@ const en: Dict = {
   "common.add": "Add",
   "common.cancel": "Cancel",
   "common.save": "Save",
-  "common.resume": "Resume",
 
   // board
   "board.title": "Unit Turns",
@@ -40,7 +39,6 @@ const en: Dict = {
   "board.admin": "Admin",
   "board.active_one": "active turn",
   "board.active_other": "active turns",
-  "board.heldCount": "{n} held",
 
   // dashboard tiles
   "tile.inTurn": "In Turn",
@@ -66,8 +64,6 @@ const en: Dict = {
   "card.cleaningTomorrow": "Cleaning tomorrow",
   "card.daysToCleaning_one": "{n} day to cleaning",
   "card.daysToCleaning_other": "{n} days to cleaning",
-  "status.onHold": "On Hold",
-  "status.blocked": "Blocked",
 
   // detail
   "detail.vacated": "Vacated",
@@ -75,7 +71,6 @@ const en: Dict = {
   "detail.stageOf": "Stage {i} of {n} — {name} ({team})",
   "team.office": "Office",
   "team.maintenance": "Maintenance",
-  "detail.hold": "Hold",
   "detail.pastPhaseOpen_one": "{n} open item in {stage}",
   "detail.pastPhaseOpen_other": "{n} open items in {stage}",
   "detail.back": "Back",
@@ -103,18 +98,6 @@ const en: Dict = {
   "stage.queued_other": "{n} tasks queued",
   "stage.progress": "{done} of {total} done",
   "stage.noTasks": "No tasks",
-
-  // hold sheet
-  "hold.putOnHold": "Put Turn on Hold",
-  "hold.onHold": "On Hold",
-  "hold.blocked": "Blocked",
-  "hold.onHoldDesc": "Waiting on something — vendor, part, approval, etc.",
-  "hold.blockedDesc": "Cannot proceed — access issue, dispute, safety concern, etc.",
-  "hold.reason": "Reason",
-  "hold.placeholderBlocked": "e.g. Tenant dispute — access denied until resolved",
-  "hold.placeholderHold": "e.g. Waiting on HVAC vendor — ETA unknown",
-  "hold.confirmBlocked": "🚫 Mark as Blocked",
-  "hold.confirmHold": "⏸ Put on Hold",
 
   // handoff sheet
   "handoff.title": "Hand off to Maintenance",
@@ -169,7 +152,6 @@ const en: Dict = {
   "lang.toSpanish": "Cambiar a Español",
 
   // board — main-specific chrome
-  "board.filter.On Hold": "On Hold",
   "board.filter.Stale - Not Ready": "Stale - Not Ready",
   "board.allBuildings": "All Buildings",
   "board.import": "Import CSV",
@@ -177,10 +159,6 @@ const en: Dict = {
 
   // detail — actions & banners
   "detail.editTurn": "Edit turn",
-  "detail.putOnHoldAria": "Put on hold",
-  "detail.updateHoldAria": "Update hold status",
-  "detail.putOnHoldTitle": "Put on hold or block",
-  "detail.updateHoldTitle": "{status} — tap to update",
   "detail.sendBackAria": "Send back a stage",
   "detail.sendBackTitle": "Send back to previous stage",
   "detail.revertBack": "Back",
@@ -259,7 +237,6 @@ const es: Dict = {
   "common.add": "Agregar",
   "common.cancel": "Cancelar",
   "common.save": "Guardar",
-  "common.resume": "Reanudar",
 
   // board
   "board.title": "Rotación de Unidades",
@@ -286,7 +263,6 @@ const es: Dict = {
   "board.admin": "Admin",
   "board.active_one": "turno activo",
   "board.active_other": "turnos activos",
-  "board.heldCount": "{n} en pausa",
 
   // dashboard tiles
   "tile.inTurn": "En rotación",
@@ -312,8 +288,6 @@ const es: Dict = {
   "card.cleaningTomorrow": "Limpieza mañana",
   "card.daysToCleaning_one": "{n} día p/limpieza",
   "card.daysToCleaning_other": "{n} días p/limpieza",
-  "status.onHold": "En pausa",
-  "status.blocked": "Bloqueada",
 
   // detail
   "detail.vacated": "Desocupada",
@@ -321,7 +295,6 @@ const es: Dict = {
   "detail.stageOf": "Etapa {i} de {n} — {name} ({team})",
   "team.office": "Oficina",
   "team.maintenance": "Mantenimiento",
-  "detail.hold": "Pausar",
   "detail.pastPhaseOpen_one": "{n} pendiente en {stage}",
   "detail.pastPhaseOpen_other": "{n} pendientes en {stage}",
   "detail.back": "Atrás",
@@ -349,18 +322,6 @@ const es: Dict = {
   "stage.queued_other": "{n} tareas en cola",
   "stage.progress": "{done} de {total} hechas",
   "stage.noTasks": "Sin tareas",
-
-  // hold sheet
-  "hold.putOnHold": "Poner la rotación en pausa",
-  "hold.onHold": "En pausa",
-  "hold.blocked": "Bloqueada",
-  "hold.onHoldDesc": "Esperando algo — proveedor, pieza, aprobación, etc.",
-  "hold.blockedDesc": "No se puede continuar — problema de acceso, disputa, seguridad, etc.",
-  "hold.reason": "Motivo",
-  "hold.placeholderBlocked": "ej. Disputa con inquilino — acceso denegado hasta resolver",
-  "hold.placeholderHold": "ej. Esperando al proveedor de HVAC — sin fecha estimada",
-  "hold.confirmBlocked": "🚫 Marcar como bloqueada",
-  "hold.confirmHold": "⏸ Poner en pausa",
 
   // handoff sheet
   "handoff.title": "Entregar a Mantenimiento",
@@ -415,7 +376,6 @@ const es: Dict = {
   "lang.toSpanish": "Cambiar a Español",
 
   // board — main-specific chrome
-  "board.filter.On Hold": "En pausa",
   "board.filter.Stale - Not Ready": "Estancado - No listo",
   "board.allBuildings": "Todos los edificios",
   "board.import": "Importar CSV",
@@ -423,10 +383,6 @@ const es: Dict = {
 
   // detail — actions & banners
   "detail.editTurn": "Editar rotación",
-  "detail.putOnHoldAria": "Poner en pausa",
-  "detail.updateHoldAria": "Actualizar estado de pausa",
-  "detail.putOnHoldTitle": "Poner en pausa o bloquear",
-  "detail.updateHoldTitle": "{status} — toca para actualizar",
   "detail.sendBackAria": "Regresar una etapa",
   "detail.sendBackTitle": "Regresar a la etapa anterior",
   "detail.revertBack": "Atrás",
@@ -503,8 +459,8 @@ const CATALOG: Record<Locale, Dict> = { en, es };
 
 // Localized stage names, indexed by stage_idx (0–4). Keep in sync with STAGES.
 const STAGE_NAMES: Record<Locale, string[]> = {
-  en: ["Inspection", "Materials", "Maintenance Repairs", "Cleaning", "Ready"],
-  es: ["Inspección", "Materiales", "Reparaciones de Mantenimiento", "Limpieza", "Lista"],
+  en: ["Inspection", "Maintenance & Materials", "Cleaning", "Ready"],
+  es: ["Inspección", "Mantenimiento y Materiales", "Limpieza", "Lista"],
 };
 
 export function stageName(locale: Locale, stageIdx: number): string {

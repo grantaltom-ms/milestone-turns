@@ -1,5 +1,3 @@
-export type HoldStatus = "on_hold" | "blocked";
-
 export type Locale = "en" | "es";
 
 export type Turn = {
@@ -14,9 +12,6 @@ export type Turn = {
   stage_entered_at: string;
   created_at: string;
   updated_at: string;
-  hold_status: HoldStatus | null;
-  hold_reason: string | null;
-  held_at: string | null;
   // stage_idx values skipped on this turn (display-only / advance bypass)
   skipped_phases: number[];
   // AppFolio-sourced: scheduled move-in date for the unit's next tenant.
