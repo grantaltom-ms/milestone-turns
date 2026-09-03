@@ -98,6 +98,7 @@ const en: Dict = {
   "stage.queued_other": "{n} tasks queued",
   "stage.progress": "{done} of {total} done",
   "stage.noTasks": "No tasks",
+  "stage.completedGroup": "Completed Tasks ({n})",
 
   // handoff sheet
   "handoff.title": "Hand off to Maintenance",
@@ -175,6 +176,7 @@ const en: Dict = {
   "detail.deleteTaskAria": "Delete task",
   "task.added": "Added",
   "task.na": "N/A",
+  "task.completedMeta": "{who} · {when}",
 
   // edit turn sheet
   "edit.title": "Edit Turn",
@@ -322,6 +324,7 @@ const es: Dict = {
   "stage.queued_other": "{n} tareas en cola",
   "stage.progress": "{done} de {total} hechas",
   "stage.noTasks": "Sin tareas",
+  "stage.completedGroup": "Tareas completadas ({n})",
 
   // handoff sheet
   "handoff.title": "Entregar a Mantenimiento",
@@ -399,6 +402,7 @@ const es: Dict = {
   "detail.deleteTaskAria": "Eliminar tarea",
   "task.added": "Agregada",
   "task.na": "N/A",
+  "task.completedMeta": "{who} · {when}",
 
   // edit turn sheet
   "edit.title": "Editar rotación",
