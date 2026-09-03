@@ -1,5 +1,5 @@
 import { getServerSupabase } from "@/lib/supabase/server";
-import type { DashboardStats, GlobalActivityEvent, HoldStatus, Profile, PropertyRow, Task, TaskNote, Turn, TurnEvent, TurnWithTasks } from "@/lib/supabase/types";
+import type { DashboardStats, GlobalActivityEvent, Profile, PropertyRow, Task, TaskNote, Turn, TurnEvent, TurnWithTasks } from "@/lib/supabase/types";
 import type { ProfileMember } from "@/lib/stages";
 
 async function fetchPropertyNames(ids: number[]): Promise<Map<number, string>> {
@@ -20,7 +20,7 @@ export async function loadTurns(): Promise<Turn[]> {
   const supabase = await getServerSupabase();
   const { data, error } = await supabase
     .from("turns")
-    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in, flooring_install_date, cleaning_scheduled_date")
+    .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, skipped_phases, next_move_in, flooring_install_date, cleaning_scheduled_date")
     .is("archived_at", null)
     .order("created_at", { ascending: false });
   if (error) throw error;
@@ -34,7 +34,7 @@ export async function loadTurnWithTasks(id: string): Promise<TurnWithTasks | nul
   const [{ data: turn, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
     supabase
       .from("turns")
-      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, hold_status, hold_reason, held_at, skipped_phases, next_move_in, flooring_install_date, cleaning_scheduled_date")
+      .select("id, property_id, unit, stage_idx, vacate_date, target_date, assignee, stage_entered_at, created_at, updated_at, skipped_phases, next_move_in, flooring_install_date, cleaning_scheduled_date")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -304,10 +304,10 @@ export function computeDashboardStats(turns: Turn[]): DashboardStats {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
 
-  const inTurnList = turns.filter((t) => t.stage_idx < 4);
+  const inTurnList = turns.filter((t) => t.stage_idx < 3);
   const inTurn = inTurnList.length;
   const overdue = inTurnList.filter((t) => t.target_date < todayStr).length;
-  const ready = turns.filter((t) => t.stage_idx === 4).length;
+  const ready = turns.filter((t) => t.stage_idx === 3).length;
   const moveInSoon = turns.filter(
     (t) => t.next_move_in != null && t.next_move_in >= todayStr && t.next_move_in <= in30DaysStr,
   ).length;
@@ -330,7 +330,6 @@ export type MyTaskItem = {
   property_name: string;
   unit: string;
   target_date: string;
-  hold_status: HoldStatus | null;
   overdue: boolean;
 };
 /** now = my open tasks in their turn's CURRENT stage (actionable); later = my
@@ -342,7 +341,7 @@ export type MyTasksResult = { now: MyTaskItem[]; later: MyTaskItem[] };
 export async function loadMyTasks(initials: string, visiblePropertyIds?: number[] | null): Promise<MyTasksResult> {
   const supabase = await getServerSupabase();
   const [{ data: turns, error: tErr }, { data: tasks, error: kErr }] = await Promise.all([
-    supabase.from("turns").select("id, property_id, unit, stage_idx, target_date, hold_status, skipped_phases").is("archived_at", null),
+    supabase.from("turns").select("id, property_id, unit, stage_idx, target_date, skipped_phases").is("archived_at", null),
     supabase
       .from("turn_tasks")
       .select("id, turn_id, name, stage_idx")
@@ -353,7 +352,7 @@ export async function loadMyTasks(initials: string, visiblePropertyIds?: number[
   if (tErr) throw tErr;
   if (kErr) throw kErr;
 
-  type TurnInfo = { property_id: number; unit: string; stage_idx: number; target_date: string; hold_status: HoldStatus | null; skipped: Set<number> };
+  type TurnInfo = { property_id: number; unit: string; stage_idx: number; target_date: string; skipped: Set<number> };
   const turnById = new Map<string, TurnInfo>();
   for (const t of turns ?? []) {
     turnById.set(t.id, {
@@ -361,7 +360,6 @@ export async function loadMyTasks(initials: string, visiblePropertyIds?: number[
       unit: t.unit,
       stage_idx: t.stage_idx,
       target_date: t.target_date,
-      hold_status: (t.hold_status as HoldStatus | null) ?? null,
       skipped: new Set(((t.skipped_phases as number[] | null) ?? [])),
     });
   }
@@ -386,8 +384,7 @@ export async function loadMyTasks(initials: string, visiblePropertyIds?: number[
       property_name: names.get(turn.property_id) ?? "Property",
       unit: turn.unit,
       target_date: turn.target_date,
-      hold_status: turn.hold_status,
-      overdue: turn.target_date < today && turn.stage_idx < 4,
+      overdue: turn.target_date < today && turn.stage_idx < 3,
     };
     if (k.stage_idx === turn.stage_idx) now.push(item);
     else if (k.stage_idx > turn.stage_idx) later.push(item);

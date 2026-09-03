@@ -9,8 +9,6 @@ import {
   deleteTaskAction,
   deleteTurnAction,
   handoffToMaintenanceAction,
-  putTurnOnHoldAction,
-  resumeTurnAction,
   setTaskAssigneeAction,
   toggleTaskAction,
   togglePhaseSkipAction,
@@ -22,13 +20,12 @@ import { SegBar } from "@/components/SegBar";
 import { StageTag } from "@/components/StageTag";
 import { TaskNotes } from "@/components/TaskNotes";
 import { UserHeader } from "@/components/UserHeader";
-import { HoldSheet } from "@/components/detail/HoldSheet";
 import { RevertSheet } from "@/components/detail/RevertSheet";
 import { ActivityLog } from "@/components/detail/ActivityLog";
 import {
   avatarColorFromProfiles,
   formatDate,
-  membersOnTeam,
+  membersAssignableInStage,
   STAGE_TEAM,
   STAGES,
   type ProfileMember,
@@ -61,16 +58,10 @@ export function Detail({
   const [picker, setPicker] = useState<{ kind: "task"; taskId: string } | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [handoffOpen, setHandoffOpen] = useState(false);
-  const [holdOpen, setHoldOpen] = useState(false);
   const [revertOpen, setRevertOpen] = useState(false);
   const [, startTransition] = useTransition();
 
   const isLead = true; // all users can send a turn back a stage
-
-  const isHeld = turn.hold_status != null;
-  const isBlocked = turn.hold_status === "blocked";
-  const holdColor = isBlocked ? "#8B4A2F" : "#C8922A";
-  const holdLabel = isBlocked ? t("status.blocked") : t("status.onHold");
 
   // Both states are optimistically mutated locally, then reset when a
   // router.refresh() delivers fresh server props. Pre-existing pattern; a
@@ -140,7 +131,7 @@ export function Detail({
   const allCurrentDone = openCurrent === 0;
   const currentStageSkipped = skipped.has(turn.stage_idx);
   // A skipped current stage can advance without completing its tasks.
-  const canAdvance = !isLast && !isHeld && (currentStageSkipped || allCurrentDone);
+  const canAdvance = !isLast && (currentStageSkipped || allCurrentDone);
   // Where advancing actually lands: first non-skipped stage at/after the next
   // one, capped at the terminal stage (mirrors advance_turn's auto-jump).
   const destStage = (() => {
@@ -161,8 +152,8 @@ export function Detail({
       : turn.stage_idx;
   const pickerStageTeam = STAGE_TEAM[pickerStageIdx];
   const pickerMembers = useMemo<ProfileMember[]>(
-    () => membersOnTeam(pickerStageTeam, profiles),
-    [pickerStageTeam, profiles],
+    () => membersAssignableInStage(pickerStageIdx, profiles),
+    [pickerStageIdx, profiles],
   );
 
   function interactivityFor(stageIdx: number): Interactivity {
@@ -247,33 +238,6 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
             ← {t("detail.back")}
           </Link>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, rowGap: 8, flexWrap: "wrap" }}>
-            {/* Hold / Blocked toggle button */}
-            {!isLast && (
-              <button
-                type="button"
-                onClick={() => setHoldOpen(true)}
-                aria-label={isHeld ? t("detail.updateHoldAria") : t("detail.putOnHoldAria")}
-                title={isHeld ? t("detail.updateHoldTitle", { status: holdLabel }) : t("detail.putOnHoldTitle")}
-                style={{
-                  padding: "5px 11px",
-                  borderRadius: 999,
-                  border: `1.5px solid ${isHeld ? holdColor : "rgba(245,241,232,0.3)"}`,
-                  background: isHeld ? holdColor : "transparent",
-                  color: isHeld ? "#fff" : "rgba(245,241,232,0.75)",
-                  fontFamily: "var(--font-sans)",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {isHeld ? (isBlocked ? "🚫" : "⏸") : "⏸"}
-                {isHeld ? holdLabel : t("detail.hold")}
-              </button>
-            )}
             {/* Send-back button — leads only, hidden at stage 0 and last stage */}
             {isLead && turn.stage_idx > 0 && !isLast && (
               <button
@@ -447,52 +411,6 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 16px 100px", background: "#F5F1E8" }}>
 
-        {/* Hold banner */}
-        {isHeld && (
-          <div
-            style={{
-              background: `${holdColor}14`,
-              border: `1.5px solid ${holdColor}44`,
-              borderRadius: 10,
-              padding: "12px 14px",
-              marginBottom: 16,
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 10,
-            }}
-          >
-            <span style={{ fontSize: 18, lineHeight: 1.2, flexShrink: 0 }}>{isBlocked ? "🚫" : "⏸"}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 13.5, color: holdColor, marginBottom: 2 }}>
-                {holdLabel}
-              </div>
-              {turn.hold_reason && (
-                <div style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.7)", lineHeight: 1.4 }}>
-                  {turn.hold_reason}
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => startTransition(() => { void resumeTurnAction(turn.id); })}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 7,
-                border: `1.5px solid ${holdColor}`,
-                background: "transparent",
-                color: holdColor,
-                fontWeight: 600,
-                fontSize: 12.5,
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              {t("common.resume")}
-            </button>
-          </div>
-        )}
-
         {/* Past-phase open items banner */}
         {pastOpenByStage.length > 0 && (
           <div
@@ -519,7 +437,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
             stageColor={s.color}
             interactivity={interactivityFor(i)}
             skipped={skipped.has(i)}
-            canSkip={!isHeld && (interactivityFor(i) !== "past" || canAddPastPhase) && i !== STAGES.length - 1}
+            canSkip={(interactivityFor(i) !== "past" || canAddPastPhase) && i !== STAGES.length - 1}
             canAddPastPhase={canAddPastPhase}
             tasks={tasksByStage.get(i) ?? []}
             profiles={profiles}
@@ -538,7 +456,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
           />
         ))}
 
-        {isHandoffPoint && !isHeld && (
+        {isHandoffPoint && (
           <div style={{ background: "rgba(26,46,68,0.07)", border: "1px solid rgba(26,46,68,0.18)", borderRadius: 8, padding: "12px 14px", marginTop: 16, lineHeight: 1.5 }}>
             <div style={{ fontWeight: 600, fontSize: 13, color: "#1A2E44", marginBottom: 2 }}>{t("detail.officeComplete")}</div>
             <div style={{ fontWeight: 400, fontSize: 13, color: "rgba(11,27,43,0.6)" }}>
@@ -546,7 +464,7 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
             </div>
           </div>
         )}
-        {allCurrentDone && !isLast && !isHandoffPoint && !isHeld && (
+        {allCurrentDone && !isLast && !isHandoffPoint && (
           <div style={{ background: "rgba(46,107,94,0.1)", border: "1px solid rgba(46,107,94,0.25)", borderRadius: 8, padding: "12px 14px", marginTop: 16, fontWeight: 400, fontSize: 13.5, lineHeight: 1.5, color: "#2A5C46" }}>
             {t("detail.allDoneAdvance", { stage: stage(destStage) })}
           </div>
@@ -559,28 +477,10 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
         <ActivityLog initialEvents={initialEvents} />
       </div>
 
-      {/* Advance / Handoff / Held-advance button */}
+      {/* Advance / Handoff button */}
       {!isLast && (
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "12px 16px 28px", background: "#F5F1E8", borderTop: "1px solid rgba(11,27,43,0.08)" }}>
-          {isHeld ? (
-            <button
-              type="button"
-              onClick={() => startTransition(() => { void resumeTurnAction(turn.id); })}
-              style={{
-                width: "100%",
-                padding: 15,
-                borderRadius: 8,
-                border: `1.5px solid ${holdColor}`,
-                cursor: "pointer",
-                background: "transparent",
-                color: holdColor,
-                fontWeight: 600,
-                fontSize: 15,
-              }}
-            >
-              {t("detail.resumeToAdvance")}
-            </button>
-          ) : isHandoffPoint ? (
+          {isHandoffPoint ? (
             <button
               type="button"
               onClick={() => setHandoffOpen(true)}
@@ -624,21 +524,6 @@ const currentStageTeamLabel = STAGE_TEAM[turn.stage_idx] === "office" ? t("team.
             </button>
           )}
         </div>
-      )}
-
-      {/* Hold sheet */}
-      {holdOpen && (
-        <HoldSheet
-          propertyName={turn.property_name ?? "Property"}
-          unit={turn.unit}
-          currentStatus={turn.hold_status}
-          currentReason={turn.hold_reason}
-          onConfirm={(status, reason) => {
-            setHoldOpen(false);
-            startTransition(() => { void putTurnOnHoldAction(turn.id, status, reason); });
-          }}
-          onClose={() => setHoldOpen(false)}
-        />
       )}
 
       {/* Revert sheet */}

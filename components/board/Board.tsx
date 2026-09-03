@@ -13,7 +13,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { DashboardHeader } from "./DashboardHeader";
 import { TurnCard } from "./TurnCard";
 
-type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "Move-in Soon" | "On Hold" | "Stale - Not Ready";
+type Filter = "All" | "Office" | "Maintenance" | "Ready" | "Mine" | "Move-in Soon" | "Stale - Not Ready";
 
 /** Parse a unit string into a letter prefix (if any) and trailing number. */
 function parseUnit(unit: string): { prefix: string | null; num: number } {
@@ -39,7 +39,7 @@ function sortByUnit(turns: Turn[]): Turn[] {
     return pa.prefix !== null ? -1 : 1;
   });
 }
-const FILTERS: Filter[] = ["All", "Mine", "Move-in Soon", "Office", "Maintenance", "Ready", "On Hold", "Stale - Not Ready"];
+const FILTERS: Filter[] = ["All", "Mine", "Move-in Soon", "Office", "Maintenance", "Ready", "Stale - Not Ready"];
 
 export function Board({
   turns, openCounts, currentUser, profiles, mineIds, meta, stats,
@@ -96,7 +96,6 @@ export function Board({
       if (filter === "All") return true;
       if (filter === "Mine") return mineSet.has(t.id);
       if (filter === "Move-in Soon") return t.next_move_in != null && t.next_move_in >= todayStr && t.next_move_in <= in30DaysStr;
-      if (filter === "On Hold") return t.hold_status != null;
       if (filter === "Stale - Not Ready") return meta[t.id]?.isStale ?? false;
       const cat = STAGE_FILTER_CATEGORY[t.stage_idx];
       if (filter === "Office") return cat === "office";
@@ -111,7 +110,6 @@ export function Board({
     return filtered;
   }, [turns, filter, mineSet, todayStr, in30DaysStr, meta]);
 
-  const onHoldCount = useMemo(() => turns.filter((t) => t.hold_status != null).length, [turns]);
   const staleCount = useMemo(
     () => turns.filter((t) => meta[t.id]?.isStale).length,
     [turns, meta],
@@ -199,11 +197,10 @@ export function Board({
           <div style={{ display: "flex", gap: 6, padding: "6px 16px 14px", overflowX: "auto", scrollbarWidth: "none" }}>
             {FILTERS.map((f) => {
               const active = filter === f;
-              const isHoldChip = f === "On Hold";
               const isStaleChip = f === "Stale - Not Ready";
               const isMoveInChip = f === "Move-in Soon";
-              const chipCount = isHoldChip ? onHoldCount : isStaleChip ? staleCount : isMoveInChip ? moveInSoonCount : 0;
-              const chipColor = isStaleChip ? "#C84A2F" : isHoldChip ? "#C8922A" : isMoveInChip ? "#4A7FA5" : undefined;
+              const chipCount = isStaleChip ? staleCount : isMoveInChip ? moveInSoonCount : 0;
+              const chipColor = isStaleChip ? "#C84A2F" : isMoveInChip ? "#4A7FA5" : undefined;
               return (
                 <button key={f} type="button" onClick={() => setFilter(f)}
                   style={{
@@ -238,7 +235,6 @@ export function Board({
         ) : (
           buildings.map(([name, group]) => {
             const open = isBuildingOpen(name);
-            const heldHere = group.filter((t) => t.hold_status != null).length;
             return (
               <div key={name} style={{ marginBottom: 12 }}>
                 <button
@@ -274,11 +270,6 @@ export function Board({
                   <span style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 15.5, color: "#0B1B2B", letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {name}
                   </span>
-                  {heldHere > 0 && (
-                    <span style={{ background: "rgba(200,146,42,0.14)", color: "#9A6D18", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-                      {t("board.heldCount", { n: heldHere })}
-                    </span>
-                  )}
                   <span style={{ display: "flex", alignItems: "baseline", gap: 4, flexShrink: 0 }}>
                     <span style={{ fontWeight: 700, fontSize: 15, color: "#2E6B5E" }}>{group.length}</span>
                     <span style={{ fontWeight: 500, fontSize: 11.5, color: "rgba(11,27,43,0.45)" }}>

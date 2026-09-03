@@ -114,11 +114,7 @@ export function MyTasks({ currentUser, tasks }: { currentUser: Profile; tasks: M
                     <span style={{ fontWeight: 600, fontSize: 14.5, color: "#0B1B2B", flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {head.property_name} <span style={{ color: "#2E6B5E" }}>{head.unit}</span>
                     </span>
-                    {head.hold_status ? (
-                      <span style={{ flexShrink: 0, background: "#C8922A", color: "#fff", borderRadius: 999, padding: "3px 9px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
-                        {t("status.onHold")}
-                      </span>
-                    ) : head.overdue ? (
+                    {head.overdue ? (
                       <span style={{ flexShrink: 0, background: "#C84A2F", color: "#fff", borderRadius: 999, padding: "3px 9px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
                         {t("mytasks.overdue")}
                       </span>
